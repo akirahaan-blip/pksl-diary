@@ -248,6 +248,8 @@ textarea#diaryText::placeholder { color: var(--muted); }
 .cal .ring { position: relative; overflow: visible; }
 .cal .ring .clip { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .cal .ring .moon { position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; border-width: 2px; box-shadow: 0 0 0 2px var(--bg); z-index: 1; }
+/* 満月・新月の前後1日は同じ印を薄く（ポケスリは前後1日もイベント扱いのため） */
+.cal .ring .moon.near { opacity: .38; }
 .moonline { margin-top: 2px; min-height: 1.2em; }
 .moonline .moon { margin-right: 4px; }
 
@@ -426,7 +428,7 @@ textarea#diaryText::placeholder { color: var(--muted); }
         <button data-moon="fullnew">満月・新月</button>
         <button data-moon="quarters">上弦・下弦も</button>
       </div>
-      <p class="note">満月・新月の日に、リングの右上に小さな月の印が付きます。日付ページには毎日その日の月の名前が出ます。</p>
+      <p class="note">満月・新月の日はリングの右上に月の印、その前後1日は同じ印が薄く付きます（ポケスリのイベント期間に合わせて）。日付ページには毎日その日の月の名前が出ます。</p>
     </div>
 
     <div class="section">
@@ -615,6 +617,18 @@ function moonEventOf(k) {
   moonCache.set(k, r);
   return r;
 }
+/* カレンダーの印：当日なら {type, near:false}、前後1日なら {type, near:true}、それ以外は null
+   設定が「満月・新月」のときは上弦・下弦を無視する */
+function moonMarkOf(k) {
+  if (settings.moon === 'none') return null;
+  const ok = (t) => t && (settings.moon === 'quarters' || t === 'full' || t === 'new');
+  const t0 = moonEventOf(k);
+  if (ok(t0)) return { type: t0, near: false };
+  const tp = moonEventOf(addDays(k, 1)), tm = moonEventOf(addDays(k, -1));
+  if (ok(tp)) return { type: tp, near: true, when: '前日' };
+  if (ok(tm)) return { type: tm, near: true, when: '翌日' };
+  return null;
+}
 /* 日付ページ用：その日の月の名前と形。ちょうどの日以外は「直前に何があったか」で決める */
 function moonNameOf(k) {
   const ev = moonEventOf(k);
@@ -783,7 +797,9 @@ function renderDay() {
   $('#dayBadge').hidden = !rel;
   $('#goToday').hidden = curDate === todayKey();
   const [mc, mn] = moonNameOf(curDate);
-  $('#dayMoon').innerHTML = `<span class="moon ${mc}"></span>${mn}`;
+  const mk = moonMarkOf(curDate);
+  const note = mk && mk.near ? `（${{ full: '満月', new: '新月', first: '上弦', last: '下弦' }[mk.type]}の${mk.when}）` : '';
+  $('#dayMoon').innerHTML = `<span class="moon ${mc}"></span>${mn}${note}`;
   $('#diaryText').value = curEntry.text || '';
   autosize();
   updateMeta();
@@ -1053,11 +1069,11 @@ function makeMonth(y, m) {
     }
     ring.appendChild(clip);
     /* 満月・新月（設定によっては上弦・下弦も）の日は、リングの右上に月の印 */
-    const ev = settings.moon === 'none' ? null : moonEventOf(k);
-    if (ev && (settings.moon === 'quarters' || ev === 'full' || ev === 'new')) {
+    const mk = moonMarkOf(k);
+    if (mk) {
       const mo = document.createElement('span');
-      mo.className = 'moon ' + ev;
-      mo.title = { full: '満月', new: '新月', first: '上弦', last: '下弦' }[ev];
+      mo.className = 'moon ' + mk.type + (mk.near ? ' near' : '');
+      mo.title = { full: '満月', new: '新月', first: '上弦', last: '下弦' }[mk.type] + (mk.near ? 'の' + mk.when : '');
       ring.appendChild(mo);
     }
     btn.append(num, ring);
