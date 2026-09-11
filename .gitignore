@@ -2,6 +2,7 @@
 # テスト用のスクショや見本の画像（個人のスマホ画面なので公開しない）
 test*.png
 calendsa.png
+# （ogp.png は公開に必要なので上げる。make-ogp.py で作れる）
 # Claude の作業用フォルダ
 .claude/
 # Windows が勝手に作るファイル
