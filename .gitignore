@@ -1,0 +1,9 @@
+# ---- GitHub に上げないファイル ----
+# テスト用のスクショや見本の画像（個人のスマホ画面なので公開しない）
+test*.png
+calendsa.png
+# Claude の作業用フォルダ
+.claude/
+# Windows が勝手に作るファイル
+Thumbs.db
+desktop.ini
