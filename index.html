@@ -227,6 +227,30 @@ textarea#diaryText::placeholder { color: var(--muted); }
 .cal .day:active { transform: scale(.94); }
 #calMore { margin-top: 4px; }
 
+/* ===== 月の満ち欠けの印 =====
+   .moon は小さな丸。満ち欠けは「明るい面」と「暗い面」の2色の丸で表す。
+   full=満月（全部明るい） new=新月（全部暗い） first=上弦（右半分明るい） last=下弦（左半分明るい） */
+.moon {
+  display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+  border: 1.5px solid var(--strong); box-sizing: border-box; vertical-align: -1px;
+  --lit: #fff3c4; --dark: color-mix(in srgb, var(--strong) 70%, #000);
+  background: var(--lit);
+}
+.moon.new   { background: var(--dark); }
+.moon.first { background: linear-gradient(90deg, var(--dark) 50%, var(--lit) 50%); }
+.moon.last  { background: linear-gradient(90deg, var(--lit) 50%, var(--dark) 50%); }
+/* 三日月など途中の形は、日付ページでだけ使う（角度で表現） */
+.moon.wax-c { background: linear-gradient(90deg, var(--dark) 75%, var(--lit) 75%); }
+.moon.wax-g { background: linear-gradient(90deg, var(--dark) 25%, var(--lit) 25%); }
+.moon.wan-g { background: linear-gradient(90deg, var(--lit) 75%, var(--dark) 75%); }
+.moon.wan-c { background: linear-gradient(90deg, var(--lit) 25%, var(--dark) 25%); }
+/* カレンダーではリングの右上にちょこんと */
+.cal .ring { position: relative; overflow: visible; }
+.cal .ring .clip { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.cal .ring .moon { position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; border-width: 2px; box-shadow: 0 0 0 2px var(--bg); z-index: 1; }
+.moonline { margin-top: 2px; min-height: 1.2em; }
+.moonline .moon { margin-right: 4px; }
+
 /* ===== 設定 ===== */
 .section { margin-bottom: 22px; }
 .section h3 { margin: 0 0 8px; font-size: 14px; color: var(--strong); }
@@ -346,6 +370,7 @@ textarea#diaryText::placeholder { color: var(--muted); }
       <button class="arrow" id="prevDay" aria-label="前の日">◀</button>
       <div class="daytitle">
         <div class="label"><span id="dayLabel"></span><span id="dayBadge" class="badge" hidden></span></div>
+        <div class="moonline small muted" id="dayMoon"></div>
         <button class="chip" id="goToday" hidden>今日にもどる</button>
       </div>
       <button class="arrow" id="nextDay" aria-label="次の日">▶</button>
@@ -392,6 +417,16 @@ textarea#diaryText::placeholder { color: var(--muted); }
         <input type="color" id="accentInput" aria-label="好きな色を選ぶ" />
         <span class="small muted">← 押すと好きな色を細かく選べます</span>
       </div>
+    </div>
+
+    <div class="section">
+      <h3>カレンダーの月の満ち欠け</h3>
+      <div class="seg" id="moonSeg">
+        <button data-moon="none">表示しない</button>
+        <button data-moon="fullnew">満月・新月</button>
+        <button data-moon="quarters">上弦・下弦も</button>
+      </div>
+      <p class="note">満月・新月の日に、リングの右上に小さな月の印が付きます。日付ページには毎日その日の月の名前が出ます。</p>
     </div>
 
     <div class="section">
@@ -498,6 +533,98 @@ function relativeOf(k) {
   return '';
 }
 
+/* ============================================================
+   0.5 月の満ち欠けの計算
+   「新月→新月は平均 29.53 日」という単純計算だと実際とは最大で十数時間ズレて、
+   日付が1日ちがってしまうことがある。なので天文学の標準的な計算式
+   （Jean Meeus『Astronomical Algorithms』第49章）で、新月・上弦・満月・下弦の
+   正確な時刻を求める。誤差は数分程度。
+   ============================================================ */
+const RAD = Math.PI / 180;
+/* k = 2000年1月6日の新月を 0 とした「何回目の新月か」。小数部 0/.25/.5/.75 が 新月/上弦/満月/下弦 */
+function moonPhaseTime(k) {
+  const T = k / 1236.85, T2 = T * T, T3 = T2 * T, T4 = T3 * T;
+  let jde = 2451550.09766 + 29.530588861 * k + 0.00015437 * T2 - 0.000000150 * T3 + 0.00000000073 * T4;
+  const E = 1 - 0.002516 * T - 0.0000074 * T2;
+  const M  = (2.5534 + 29.10535670 * k - 0.0000014 * T2 - 0.00000011 * T3) * RAD;                        // 太陽の平均近点角
+  const Mp = (201.5643 + 385.81693528 * k + 0.0107582 * T2 + 0.00001238 * T3 - 0.000000058 * T4) * RAD;  // 月の平均近点角
+  const F  = (160.7108 + 390.67050284 * k - 0.0016118 * T2 - 0.00000227 * T3 + 0.000000011 * T4) * RAD;  // 月の緯度引数
+  const Om = (124.7746 - 1.56375588 * k + 0.0020672 * T2 + 0.00000215 * T3) * RAD;                       // 昇交点黄経
+  const ph = Math.round((k - Math.floor(k)) * 4);   // 0=新月 1=上弦 2=満月 3=下弦
+  const sin = Math.sin, cos = Math.cos;
+  let c = 0;
+  if (ph === 0 || ph === 2) {
+    const n = ph === 0;
+    c = (n ? -0.40720 : -0.40614) * sin(Mp) + (n ? 0.17241 : 0.17302) * E * sin(M)
+      + (n ? 0.01608 : 0.01614) * sin(2 * Mp) + (n ? 0.01039 : 0.01043) * sin(2 * F)
+      + (n ? 0.00739 : 0.00734) * E * sin(Mp - M) - (n ? 0.00514 : 0.00515) * E * sin(Mp + M)
+      + (n ? 0.00208 : 0.00209) * E * E * sin(2 * M) - 0.00111 * sin(Mp - 2 * F) - 0.00057 * sin(Mp + 2 * F)
+      + 0.00056 * E * sin(2 * Mp + M) - 0.00042 * sin(3 * Mp) + 0.00042 * E * sin(M + 2 * F)
+      + 0.00038 * E * sin(M - 2 * F) - 0.00024 * E * sin(2 * Mp - M) - 0.00017 * sin(Om)
+      - 0.00007 * sin(Mp + 2 * M) + 0.00004 * sin(2 * Mp - 2 * F) + 0.00004 * sin(3 * M)
+      + 0.00003 * sin(Mp + M - 2 * F) + 0.00003 * sin(2 * Mp + 2 * F) - 0.00003 * sin(Mp + M + 2 * F)
+      + 0.00003 * sin(Mp - M + 2 * F) - 0.00002 * sin(Mp - M - 2 * F) - 0.00002 * sin(3 * Mp + M)
+      + 0.00002 * sin(4 * Mp);
+  } else {
+    c = -0.62801 * sin(Mp) + 0.17172 * E * sin(M) - 0.01183 * E * sin(Mp + M) + 0.00862 * sin(2 * Mp)
+      + 0.00804 * sin(2 * F) + 0.00454 * E * sin(Mp - M) + 0.00204 * E * E * sin(2 * M)
+      - 0.00180 * sin(Mp - 2 * F) - 0.00070 * sin(Mp + 2 * F) - 0.00040 * sin(3 * Mp)
+      - 0.00034 * E * sin(2 * Mp - M) + 0.00032 * E * sin(M + 2 * F) + 0.00032 * E * sin(M - 2 * F)
+      - 0.00028 * E * E * sin(Mp + 2 * M) + 0.00027 * E * sin(2 * Mp + M) - 0.00017 * sin(Om)
+      - 0.00005 * sin(Mp - M - 2 * F) + 0.00004 * sin(2 * Mp + 2 * F) - 0.00004 * sin(Mp + M + 2 * F)
+      + 0.00004 * sin(Mp - 2 * M) + 0.00003 * sin(Mp + M - 2 * F) + 0.00003 * sin(3 * M)
+      + 0.00002 * sin(2 * Mp - 2 * F) + 0.00002 * sin(Mp - M + 2 * F) - 0.00002 * sin(3 * Mp + M);
+    const W = 0.00306 - 0.00038 * E * cos(M) + 0.00026 * cos(Mp) - 0.00002 * cos(Mp - M) + 0.00002 * cos(Mp + M) + 0.00002 * cos(2 * F);
+    c += ph === 1 ? W : -W;
+  }
+  /* 惑星の影響（ごく小さい補正） */
+  const A = [
+    [299.77 + 0.107408 * k - 0.009173 * T2, 0.000325], [251.88 + 0.016321 * k, 0.000165],
+    [251.83 + 26.651886 * k, 0.000164], [349.42 + 36.412478 * k, 0.000126], [84.66 + 18.206239 * k, 0.000110],
+    [141.74 + 53.303771 * k, 0.000062], [207.14 + 2.453732 * k, 0.000060], [154.84 + 7.306860 * k, 0.000056],
+    [34.52 + 27.261239 * k, 0.000047], [207.19 + 0.121824 * k, 0.000042], [291.34 + 1.844379 * k, 0.000040],
+    [161.72 + 24.198154 * k, 0.000037], [239.56 + 25.513099 * k, 0.000035], [331.55 + 3.592518 * k, 0.000023],
+  ];
+  for (const [deg, amp] of A) c += amp * sin(deg * RAD);
+  jde += c;
+  return (jde - 2440587.5) * 86400000 - 69000;   // ユリウス日 → ミリ秒。-69秒は地球の自転のズレ（ΔT）ぶん
+}
+/* ある期間に入る 新月/上弦/満月/下弦 を全部並べる（時刻順） */
+const PHASE_NAMES = ['new', 'first', 'full', 'last'];
+function moonEventsBetween(fromMs, toMs) {
+  const k0 = Math.floor((fromMs - Date.UTC(2000, 0, 6, 18, 14)) / 86400000 / 29.530588853) - 1;
+  const out = [];
+  for (let k = k0; ; k++) {
+    let past = false;
+    for (let q = 0; q < 4; q++) {
+      const t = moonPhaseTime(k + q / 4);
+      if (t >= toMs) { past = true; break; }
+      if (t >= fromMs) out.push({ ms: t, type: PHASE_NAMES[q] });
+    }
+    if (past) break;
+  }
+  return out;
+}
+const moonCache = new Map();
+/* その日（0:00〜24:00、スマホの時間帯）に 満月/新月/上弦/下弦 の瞬間が入っていれば、その種類 */
+function moonEventOf(k) {
+  if (moonCache.has(k)) return moonCache.get(k);
+  const d = fromKey(k).getTime();
+  const ev = moonEventsBetween(d, d + 86400000)[0];
+  const r = ev ? ev.type : null;
+  moonCache.set(k, r);
+  return r;
+}
+/* 日付ページ用：その日の月の名前と形。ちょうどの日以外は「直前に何があったか」で決める */
+function moonNameOf(k) {
+  const ev = moonEventOf(k);
+  if (ev) return [ev, { new: '新月', first: '上弦の月', full: '満月', last: '下弦の月' }[ev]];
+  const noon = fromKey(k).getTime() + 43200000;
+  const prev = moonEventsBetween(noon - 32 * 86400000, noon).pop();
+  const t = prev ? prev.type : 'new';
+  return { new: ['wax-c', '三日月'], first: ['wax-g', '十三夜'], full: ['wan-g', '十六夜'], last: ['wan-c', '有明月'] }[t];
+}
+
 let toastTimer;
 function toast(msg, ms = 2200) {
   const el = $('#toast');
@@ -516,7 +643,7 @@ const PRESETS = [
   ['#8b5cf6', 'むらさき'], ['#3b82f6', 'あお'], ['#0ea5a4', 'みずいろ'],
   ['#2e9e5b', 'みどり'], ['#e08a1e', 'オレンジ'], ['#6b4f3a', 'こげ茶'],
 ];
-const defaults = { accent: '#c43d74', mode: 'auto' };
+const defaults = { accent: '#c43d74', mode: 'auto', moon: 'fullnew' };   // moon: none / fullnew / quarters
 let settings = loadSettings();
 
 function loadSettings() {
@@ -655,6 +782,8 @@ function renderDay() {
   $('#dayBadge').textContent = rel;
   $('#dayBadge').hidden = !rel;
   $('#goToday').hidden = curDate === todayKey();
+  const [mc, mn] = moonNameOf(curDate);
+  $('#dayMoon').innerHTML = `<span class="moon ${mc}"></span>${mn}`;
   $('#diaryText').value = curEntry.text || '';
   autosize();
   updateMeta();
@@ -913,12 +1042,23 @@ function makeMonth(y, m) {
     num.className = 'num'; num.textContent = d;
     const ring = document.createElement('span');
     ring.className = 'ring';
+    const clip = document.createElement('span');            // 丸くくり抜く部分
+    clip.className = 'clip';
     if (e && e.photos && e.photos.length) {
       const img = document.createElement('img');            // 1枚目のスクショを丸の中に
       img.src = urlFor(e.photos[0].thumb, 'calendar'); img.alt = '';
-      ring.appendChild(img);
+      clip.appendChild(img);
     } else if (e) {
-      ring.innerHTML = '<span class="pen">✎</span>';          // 文章だけの日
+      clip.innerHTML = '<span class="pen">✎</span>';          // 文章だけの日
+    }
+    ring.appendChild(clip);
+    /* 満月・新月（設定によっては上弦・下弦も）の日は、リングの右上に月の印 */
+    const ev = settings.moon === 'none' ? null : moonEventOf(k);
+    if (ev && (settings.moon === 'quarters' || ev === 'full' || ev === 'new')) {
+      const mo = document.createElement('span');
+      mo.className = 'moon ' + ev;
+      mo.title = { full: '満月', new: '新月', first: '上弦', last: '下弦' }[ev];
+      ring.appendChild(mo);
     }
     btn.append(num, ring);
     btn.addEventListener('click', () => openDay(k));
@@ -986,6 +1126,7 @@ function renderSettings() {
   });
   $('#accentInput').value = settings.accent;
   document.querySelectorAll('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.mode === settings.mode));
+  document.querySelectorAll('#moonSeg button').forEach((b) => b.classList.toggle('on', b.dataset.moon === settings.moon));
   showStorage();
 }
 function setAccent(c) {
@@ -996,6 +1137,9 @@ $('#accentInput').addEventListener('input', (e) => { settings.accent = e.target.
 $('#accentInput').addEventListener('change', () => renderSettings());
 document.querySelectorAll('#modeSeg button').forEach((b) => {
   b.addEventListener('click', () => { settings.mode = b.dataset.mode; saveSettings(); applyTheme(); renderSettings(); });
+});
+document.querySelectorAll('#moonSeg button').forEach((b) => {
+  b.addEventListener('click', () => { settings.moon = b.dataset.moon; saveSettings(); renderSettings(); });
 });
 async function showStorage() {
   const el = $('#storageInfo');
