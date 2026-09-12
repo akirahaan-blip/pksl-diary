@@ -172,6 +172,20 @@ textarea#diaryText::placeholder { color: var(--muted); }
 .meta { display: flex; justify-content: space-between; margin-top: 6px; padding: 0 4px; }
 
 /* ===== タイムライン ===== */
+.searchbox {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 12px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px 4px 12px;
+}
+.searchbox:focus-within { border-color: var(--strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.searchbox .sicon { font-size: 14px; opacity: .7; }
+.searchbox input {
+  flex: 1; min-width: 0; border: none; background: none; outline: none;
+  font-family: inherit; font-size: 15px; color: var(--text); padding: 6px 0;
+}
+.searchbox input::placeholder { color: var(--muted); font-size: 13px; font-weight: 700; }
+.searchbox input::-webkit-search-cancel-button { display: none; }
+.searchbox button { width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--soft); color: var(--strong); font-size: 13px; }
+mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
 .card {
   background: var(--card); border: 1px solid var(--line); border-radius: 16px;
   padding: 12px 14px; margin-bottom: 12px; box-shadow: var(--shadow);
@@ -397,6 +411,12 @@ textarea#diaryText::placeholder { color: var(--muted); }
   <!-- ===== タイムライン ===== -->
   <section id="view-timeline" class="view" hidden>
     <h2>📜 タイムライン</h2>
+    <div class="searchbox">
+      <span class="sicon">🔍</span>
+      <input type="search" id="searchInput" placeholder="キーワードで探す（スペース区切りで絞り込み）" autocomplete="off" enterkeyhint="search" />
+      <button id="searchClear" aria-label="消す" hidden>✕</button>
+    </div>
+    <div class="small muted" id="searchInfo" style="margin:-4px 4px 10px" hidden></div>
     <div id="timeline"></div>
   </section>
 
@@ -934,13 +954,55 @@ function setSaveState(msg, ok = false) {
    6. タイムライン（新しい日が上）
    ============================================================ */
 const PAGE = 15;
+let searchWords = [];          // いま絞り込みに使っている言葉（小文字にそろえたもの）
+/* 検索用に文字をそろえる：大文字→小文字、全角英数→半角、カタカナ→ひらがな */
+function norm(str) {
+  return (str || '').toLowerCase()
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
+}
+/* この日記が検索に引っかかるか。本文・日付の表示・月の名前のどれかに全部の言葉が入っていればOK */
+function matches(e) {
+  if (!searchWords.length) return true;
+  const hay = norm(e.text) + ' ' + norm(labelOf(e.date)) + ' ' + norm(moonNameOf(e.date)[1]) + ' ' + e.date;
+  return searchWords.every((w) => hay.includes(w));
+}
+/* 本文の中のヒットした言葉を <mark> で囲む（HTMLとして安全に） */
+function highlight(text) {
+  const esc = (t) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  if (!searchWords.length) return esc(text);
+  const chars = Array.from(text);
+  const n = norm(text);
+  /* norm しても文字数が変わらない前提（1文字→1文字の変換しかしていない） */
+  const hit = new Array(chars.length).fill(false);
+  for (const w of searchWords) {
+    let i = n.indexOf(w);
+    while (i !== -1) { for (let j = i; j < i + w.length; j++) hit[j] = true; i = n.indexOf(w, i + 1); }
+  }
+  let out = '', open = false;
+  chars.forEach((c, i) => {
+    if (hit[i] && !open) { out += '<mark class="hit">'; open = true; }
+    if (!hit[i] && open) { out += '</mark>'; open = false; }
+    out += esc(c);
+  });
+  if (open) out += '</mark>';
+  return out;
+}
 async function renderTimeline() {
   revokeAll('timeline');
   const box = $('#timeline');
   box.innerHTML = '';
-  const all = (await dbGetAll()).sort((a, b) => (a.date < b.date ? 1 : -1));
-  if (!all.length) {
+  const every = (await dbGetAll()).sort((a, b) => (a.date < b.date ? 1 : -1));
+  const all = every.filter(matches);
+  const info = $('#searchInfo');
+  info.hidden = !searchWords.length;
+  if (searchWords.length) info.textContent = all.length ? `${all.length}件みつかりました` : '';
+  if (!every.length) {
     box.innerHTML = `<div class="empty"><div class="big">🌙</div>まだ日記がありません。<br>「今日」タブから書いてみよう！</div>`;
+    return;
+  }
+  if (!all.length) {
+    box.innerHTML = `<div class="empty"><div class="big">🔍</div>「${searchWords.join(' ')}」は見つかりませんでした</div>`;
     return;
   }
   let shown = 0;
@@ -982,12 +1044,30 @@ function makeCard(e) {
   if ((e.text || '').trim()) {
     const p = document.createElement('p');
     p.className = 'text clamp';
-    p.textContent = e.text;
+    p.innerHTML = highlight(e.text);
     p.addEventListener('click', () => p.classList.toggle('clamp'));   // 長い文はタップで全部見せる
     card.appendChild(p);
   }
   return card;
 }
+
+/* 検索ボックス：打つたびに少し待って絞り込む */
+let searchTimer;
+$('#searchInput').addEventListener('input', (e) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    searchWords = norm(e.target.value).split(/[\s　]+/).filter(Boolean);
+    $('#searchClear').hidden = !e.target.value;
+    renderTimeline();
+  }, 250);
+});
+$('#searchInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });   // スマホのキーボードを閉じる
+$('#searchClear').addEventListener('click', () => {
+  $('#searchInput').value = '';
+  searchWords = [];
+  $('#searchClear').hidden = true;
+  renderTimeline();
+});
 
 /* ============================================================
    7. カレンダー
