@@ -112,6 +112,14 @@ main { max-width: 560px; margin: 0 auto; padding: 14px 14px 0; }
 .view > h2 { margin: 4px 0 12px; font-size: 16px; color: var(--strong); }
 
 /* ===== 日付ページ ===== */
+.tip {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+  padding: 10px 10px 10px 14px; border-radius: 14px;
+  background: var(--soft); border: 1px solid var(--line); font-size: 13px; font-weight: 700; line-height: 1.5;
+}
+.tip span { flex: 1; }
+.tip button { border: none; border-radius: 999px; padding: 6px 10px; font-size: 12.5px; font-weight: 700; background: var(--strong); color: var(--on-strong); white-space: nowrap; }
+.tip #tipColorClose { background: none; color: var(--muted); font-size: 14px; padding: 4px 6px; }
 .daynav {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   margin-bottom: 12px;
@@ -148,6 +156,17 @@ main { max-width: 560px; margin: 0 auto; padding: 14px 14px 0; }
   position: absolute; top: 4px; right: 4px;
   width: 26px; height: 26px; border-radius: 50%; border: none;
   background: rgba(0,0,0,.55); color: #fff; font-size: 14px; line-height: 1;
+}
+/* 並べ替えの ◀ ▶（スクショの下端） */
+.slot .mv {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; justify-content: space-between;
+  background: linear-gradient(transparent, rgba(0,0,0,.55));
+  padding: 10px 2px 2px;
+}
+.slot .mv button {
+  border: none; background: rgba(0,0,0,.45); color: #fff;
+  width: 26px; height: 24px; border-radius: 8px; font-size: 11px; line-height: 1; padding: 0;
 }
 .slot.add {
   border: 2px dashed var(--line); background: transparent;
@@ -382,6 +401,12 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
 <main>
   <!-- ===== 日付ページ（開いた直後は今日） ===== -->
   <section id="view-day" class="view">
+    <!-- 1回だけ出るお知らせ（✕ で消したら二度と出ない） -->
+    <div class="tip" id="tipColor" hidden>
+      <span>🎨 <b>テーマ色を変えられます。</b>下の「色・設定」タブから、ピンク以外の色も選べます</span>
+      <button id="tipColorGo">見てみる</button>
+      <button id="tipColorClose" aria-label="閉じる">✕</button>
+    </div>
     <div class="daynav">
       <button class="arrow" id="prevDay" aria-label="前の日">◀</button>
       <div class="daytitle">
@@ -430,10 +455,10 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
 
   <!-- ===== 設定 ===== -->
   <section id="view-settings" class="view" hidden>
-    <h2>⚙️ 設定</h2>
+    <h2>🎨 色・設定</h2>
 
     <div class="section">
-      <h3>テーマ色</h3>
+      <h3>テーマ色（好きな色に変えられます）</h3>
       <div class="swatches" id="swatches"></div>
       <div class="colorpick" style="margin-top:10px">
         <input type="color" id="accentInput" aria-label="好きな色を選ぶ" />
@@ -489,7 +514,7 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
   <button data-view="day" class="on"><span class="ico">📝</span><span class="lbl">今日</span></button>
   <button data-view="timeline"><span class="ico">📜</span><span class="lbl">タイムライン</span></button>
   <button data-view="calendar"><span class="ico">📅</span><span class="lbl">カレンダー</span></button>
-  <button data-view="settings"><span class="ico">⚙️</span><span class="lbl">設定</span></button>
+  <button data-view="settings"><span class="ico">🎨</span><span class="lbl">色・設定</span></button>
 </nav>
 
 <!-- ===== スクショ拡大 ===== -->
@@ -723,10 +748,40 @@ async function tx(mode, fn) {
     req.onerror = () => ng(req.error);
   });
 }
-const dbGet     = (date)  => tx('readonly',  (s) => s.get(date));
-const dbGetAll  = ()      => tx('readonly',  (s) => s.getAll());
+/* ---- 画像の保存形式について ----
+   iPhone の Safari には「IndexedDB から読み出した Blob（画像）を、そのままもう一度保存し直すと
+   中身が壊れる」という不具合がある。あとからスクショを追加したときに古い写真が消えるのはこれ。
+   なので保存するときは Blob ではなく ArrayBuffer（ただのバイト列）にして書き込み、
+   読み出したら Blob に戻す。画面側のコードはこれまでどおり p.full / p.thumb（Blob）を使える。 */
+async function packPhoto(fullBlob, thumbBlob) {
+  const [fullBuf, thumbBuf] = await Promise.all([fullBlob.arrayBuffer(), thumbBlob.arrayBuffer()]);
+  return { full: fullBlob, thumb: thumbBlob, fullBuf, thumbBuf, type: fullBlob.type || 'image/jpeg' };
+}
+function hydrate(entry) {                       // DB から読んだものを画面用に
+  if (!entry) return entry;
+  entry.photos = (entry.photos || []).map((p) => {
+    if (p.fullBuf) {                            // 新形式
+      return { full: new Blob([p.fullBuf], { type: p.type }), thumb: new Blob([p.thumbBuf], { type: p.type }), fullBuf: p.fullBuf, thumbBuf: p.thumbBuf, type: p.type };
+    }
+    return { full: p.full, thumb: p.thumb, fullBuf: null, thumbBuf: null, type: p.full && p.full.type || 'image/jpeg' };   // 旧形式（Blob のまま）
+  });
+  return entry;
+}
+async function dehydrate(entry) {               // 保存用に（Blob を含めない）
+  const photos = [];
+  for (const p of entry.photos) {
+    if (!p.fullBuf) {                           // 旧形式の写真は、このタイミングで新形式に直す
+      try { p.fullBuf = await p.full.arrayBuffer(); p.thumbBuf = await p.thumb.arrayBuffer(); }
+      catch { continue; }                       // 読めない（すでに壊れている）写真は残念だけど飛ばす
+    }
+    photos.push({ fullBuf: p.fullBuf, thumbBuf: p.thumbBuf, type: p.type });
+  }
+  return { date: entry.date, text: entry.text || '', photos, updatedAt: entry.updatedAt };
+}
+const dbGet     = async (date) => hydrate(await tx('readonly', (s) => s.get(date)));
+const dbGetAll  = async ()     => (await tx('readonly', (s) => s.getAll())).map(hydrate);
 const dbKeys    = ()      => tx('readonly',  (s) => s.getAllKeys());
-const dbPut     = (entry) => tx('readwrite', (s) => s.put(entry));
+const dbPut     = async (entry) => { const rec = await dehydrate(entry); return tx('readwrite', (s) => s.put(rec)); };
 const dbDelete  = (date)  => tx('readwrite', (s) => s.delete(date));
 const dbClear   = ()      => tx('readwrite', (s) => s.clear());
 
@@ -759,7 +814,7 @@ function shrink(img, maxSide, quality) {
 async function makePhoto(file) {
   const img = await loadImage(file);
   const [full, thumb] = await Promise.all([shrink(img, FULL_MAX, 0.86), shrink(img, THUMB_MAX, 0.8)]);
-  return { full, thumb };
+  return packPhoto(full, thumb);
 }
 
 /* 画像(Blob)を画面に出すための一時URL。使い終わったら revoke（片づけ）する */
@@ -848,6 +903,26 @@ function renderPhotos() {
       renderPhotos();
     });
     slot.append(img, del);
+    /* 並べ替え：◀ で左の写真と、▶ で右の写真と入れ替え */
+    if (photos.length > 1) {
+      const mv = document.createElement('div');
+      mv.className = 'mv';
+      const mk = (label, to, aria) => {
+        const b = document.createElement('button');
+        b.textContent = label; b.setAttribute('aria-label', aria);
+        b.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          [curEntry.photos[i], curEntry.photos[to]] = [curEntry.photos[to], curEntry.photos[i]];
+          await persist();
+          renderPhotos();
+        });
+        return b;
+      };
+      if (i > 0) mv.appendChild(mk('◀', i - 1, '左へ'));
+      if (i < photos.length - 1) mv.appendChild(mk('▶', i + 1, '右へ'));
+      if (i === 0) mv.style.justifyContent = 'flex-end';
+      slot.appendChild(mv);
+    }
     grid.appendChild(slot);
   });
   if (photos.length < MAX_PHOTOS) {
@@ -884,6 +959,13 @@ $('#fileInput').addEventListener('change', async (e) => {
     $('#photoGrid').classList.remove('busy');
   }
 });
+
+/* 色が変えられることのお知らせ（1回だけ） */
+const TIP_KEY = 'pksl-diary-tip-color';
+try { $('#tipColor').hidden = !!localStorage.getItem(TIP_KEY); } catch {}
+function closeTip() { $('#tipColor').hidden = true; try { localStorage.setItem(TIP_KEY, '1'); } catch {} }
+$('#tipColorClose').addEventListener('click', closeTip);
+$('#tipColorGo').addEventListener('click', async () => { closeTip(); await flushSave(); showView('settings'); });
 
 $('#prevDay').addEventListener('click', () => openDay(addDays(curDate, -1)));
 $('#nextDay').addEventListener('click', () => openDay(addDays(curDate, 1)));
@@ -1226,6 +1308,7 @@ function renderSettings() {
   showStorage();
 }
 function setAccent(c) {
+  try { localStorage.setItem(TIP_KEY, '1'); } catch {}   // 色を変えた人にはお知らせは不要
   settings.accent = c;
   saveSettings(); applyTheme(); renderSettings();
 }
@@ -1299,7 +1382,7 @@ $('#importInput').addEventListener('change', async (e) => {
         const blob = await (await fetch(src)).blob();
         const img = await loadImage(blob);
         const thumb = await shrink(img, THUMB_MAX, 0.8);
-        photos.push({ full: blob, thumb });
+        photos.push(await packPhoto(blob, thumb));
       }
       await dbPut({ date: en.date, text: en.text || '', photos, updatedAt: en.updatedAt || Date.now() });
       n++;
