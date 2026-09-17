@@ -157,6 +157,9 @@ main { max-width: 560px; margin: 0 auto; padding: 14px 14px 0; }
   width: 26px; height: 26px; border-radius: 50%; border: none;
   background: rgba(0,0,0,.55); color: #fff; font-size: 14px; line-height: 1;
 }
+/* 表示できなかった写真 */
+.slot.broken img { visibility: hidden; }
+.slot .brokenmsg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 11px; font-weight: 700; color: var(--danger); line-height: 1.4; }
 /* 並べ替えの ◀ ▶（スクショの下端） */
 .slot .mv {
   position: absolute; left: 0; right: 0; bottom: 0;
@@ -757,29 +760,48 @@ async function packPhoto(fullBlob, thumbBlob) {
   const [fullBuf, thumbBuf] = await Promise.all([fullBlob.arrayBuffer(), thumbBlob.arrayBuffer()]);
   return { full: fullBlob, thumb: thumbBlob, fullBuf, thumbBuf, type: fullBlob.type || 'image/jpeg' };
 }
-function hydrate(entry) {                       // DB から読んだものを画面用に
+/* DB から読んだものを画面用に。
+   旧形式（Blob のまま）の写真は、この時点で（＝何かを保存し直す前に）ArrayBuffer に読み替える。
+   Safari は「記録を上書きすると、古い Blob の実体を消す」ので、上書きより前に中身を確保しておく必要がある。 */
+async function hydrate(entry) {
   if (!entry) return entry;
-  entry.photos = (entry.photos || []).map((p) => {
-    if (p.fullBuf) {                            // 新形式
-      return { full: new Blob([p.fullBuf], { type: p.type }), thumb: new Blob([p.thumbBuf], { type: p.type }), fullBuf: p.fullBuf, thumbBuf: p.thumbBuf, type: p.type };
+  const photos = [];
+  for (const p of entry.photos || []) {
+    if (p.fullBuf && p.thumbBuf) {                                  // 新形式
+      photos.push(fromBuffers(p.fullBuf, p.thumbBuf, p.type));
+      continue;
     }
-    return { full: p.full, thumb: p.thumb, fullBuf: null, thumbBuf: null, type: p.full && p.full.type || 'image/jpeg' };   // 旧形式（Blob のまま）
-  });
+    /* 旧形式：いま読めるうちにバイト列へ */
+    try {
+      const fullBuf = await p.full.arrayBuffer();
+      const thumbBuf = await p.thumb.arrayBuffer();
+      if (!fullBuf.byteLength) throw new Error('empty');
+      photos.push(fromBuffers(fullBuf, thumbBuf, p.full.type || 'image/jpeg'));
+    } catch {
+      /* 読めない写真でも捨てない。元の Blob を持ったまま「壊れているかも」印を付ける */
+      photos.push({ full: p.full, thumb: p.thumb, fullBuf: null, thumbBuf: null, type: 'image/jpeg', legacy: { full: p.full, thumb: p.thumb }, broken: true });
+    }
+  }
+  entry.photos = photos;
   return entry;
 }
-async function dehydrate(entry) {               // 保存用に（Blob を含めない）
+function fromBuffers(fullBuf, thumbBuf, type) {
+  return { full: new Blob([fullBuf], { type }), thumb: new Blob([thumbBuf], { type }), fullBuf, thumbBuf, type };
+}
+/* 保存用に。どの写真も絶対に捨てない（読めない旧形式は、旧形式のまま書き戻す） */
+async function dehydrate(entry) {
   const photos = [];
   for (const p of entry.photos) {
-    if (!p.fullBuf) {                           // 旧形式の写真は、このタイミングで新形式に直す
-      try { p.fullBuf = await p.full.arrayBuffer(); p.thumbBuf = await p.thumb.arrayBuffer(); }
-      catch { continue; }                       // 読めない（すでに壊れている）写真は残念だけど飛ばす
+    if (!p.fullBuf || !p.thumbBuf) {
+      try { p.fullBuf = await p.full.arrayBuffer(); p.thumbBuf = await p.thumb.arrayBuffer(); p.broken = false; }
+      catch { photos.push({ full: p.legacy ? p.legacy.full : p.full, thumb: p.legacy ? p.legacy.thumb : p.thumb }); continue; }
     }
     photos.push({ fullBuf: p.fullBuf, thumbBuf: p.thumbBuf, type: p.type });
   }
   return { date: entry.date, text: entry.text || '', photos, updatedAt: entry.updatedAt };
 }
 const dbGet     = async (date) => hydrate(await tx('readonly', (s) => s.get(date)));
-const dbGetAll  = async ()     => (await tx('readonly', (s) => s.getAll())).map(hydrate);
+const dbGetAll  = async ()     => Promise.all((await tx('readonly', (s) => s.getAll())).map(hydrate));
 const dbKeys    = ()      => tx('readonly',  (s) => s.getAllKeys());
 const dbPut     = async (entry) => { const rec = await dehydrate(entry); return tx('readwrite', (s) => s.put(rec)); };
 const dbDelete  = (date)  => tx('readwrite', (s) => s.delete(date));
@@ -893,6 +915,11 @@ function renderPhotos() {
     img.src = urlFor(p.thumb, 'day');
     img.alt = `スクショ${i+1}`;
     img.addEventListener('click', () => openLightbox(photos, i));
+    img.addEventListener('error', () => {
+      slot.classList.add('broken');
+      slot.insertAdjacentHTML('beforeend', '<span class="brokenmsg">⚠<br>読めません</span>');
+      console.warn('photo broken', curDate, i, p);
+    });
     const del = document.createElement('button');
     del.className = 'del'; del.textContent = '✕'; del.setAttribute('aria-label', 'このスクショを消す');
     del.addEventListener('click', async (e) => {
@@ -912,8 +939,11 @@ function renderPhotos() {
         b.textContent = label; b.setAttribute('aria-label', aria);
         b.addEventListener('click', async (e) => {
           e.stopPropagation();
+          const grid = $('#photoGrid');
+          if (grid.classList.contains('busy')) return;
+          grid.classList.add('busy');
           [curEntry.photos[i], curEntry.photos[to]] = [curEntry.photos[to], curEntry.photos[i]];
-          await persist();
+          try { await persist(); } finally { grid.classList.remove('busy'); }
           renderPhotos();
         });
         return b;
@@ -1004,7 +1034,13 @@ async function flushSave() {
   await persist();
 }
 /* 文字もスクショもない日は、レコードごと消す（カレンダーの●を正しくするため） */
-async function persist() {
+let persistChain = Promise.resolve();
+function persist() {                              // 同時に呼ばれても順番に1つずつ保存する
+  const run = persistChain.then(persistNow, persistNow);
+  persistChain = run.catch(() => {});
+  return run;
+}
+async function persistNow() {
   const empty = !(curEntry.text || '').trim() && curEntry.photos.length === 0;
   try {
     if (empty) {
@@ -1324,7 +1360,10 @@ async function showStorage() {
   const el = $('#storageInfo');
   try {
     const n = (await dbKeys()).length;
-    let s = `いま ${n} 日分の日記があります。`;
+    const all = await tx('readonly', (st) => st.getAll());
+    let nNew = 0, nOld = 0;
+    for (const e of all) for (const p of e.photos || []) { if (p.fullBuf) nNew++; else nOld++; }
+    let s = `いま ${n} 日分の日記、写真 ${nNew + nOld} 枚（新形式 ${nNew}／旧形式 ${nOld}）。`;
     if (navigator.storage && navigator.storage.estimate) {
       const est = await navigator.storage.estimate();
       s += ` 使用中の容量：約 ${(est.usage / 1024 / 1024).toFixed(1)} MB`;
