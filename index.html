@@ -110,6 +110,10 @@ img { display: block; max-width: 100%; }
 
 main { max-width: 560px; margin: 0 auto; padding: 14px 14px 0; }
 .view > h2 { margin: 4px 0 12px; font-size: 16px; color: var(--strong); }
+/* 見出しの右にボタンを置くとき */
+.vhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 12px; }
+.vhead h2 { margin: 0; font-size: 16px; color: var(--strong); }
+.vhead .chip { margin-top: 0; }
 
 /* ===== 日付ページ ===== */
 .tip {
@@ -237,8 +241,14 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
   content: ""; position: absolute; left: -8px; top: 0; bottom: 0; width: 5px;
   border-radius: 3px; background: var(--strong);
 }
+.mhead { display: flex; align-items: center; gap: 8px; }
 .mhead .cnt {
-  float: right; font-size: 12px; font-weight: 700; opacity: .85; margin-top: 2px;
+  margin-left: auto; font-size: 12px; font-weight: 700; opacity: .85;
+}
+/* 月まとめ画像を作るボタン（帯の右はし） */
+.mhead .mbtn {
+  border: none; border-radius: 999px; padding: 2px 10px;
+  background: var(--on-strong); color: var(--strong); font-size: 12px; font-weight: 700;
 }
 .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px 2px; }
 .cal .wd { text-align: center; font-size: 13px; font-weight: 700; color: var(--strong); padding: 0 0 2px; }
@@ -438,7 +448,10 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
 
   <!-- ===== タイムライン ===== -->
   <section id="view-timeline" class="view" hidden>
-    <h2>📜 タイムライン</h2>
+    <div class="vhead">
+      <h2>📜 タイムライン</h2>
+      <button class="chip" id="goRandom">🎲 ランダムにふりかえる</button>
+    </div>
     <div class="searchbox">
       <span class="sicon">🔍</span>
       <input type="search" id="searchInput" placeholder="キーワードで探す（スペース区切りで絞り込み）" autocomplete="off" enterkeyhint="search" />
@@ -533,7 +546,7 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
 <div id="enikki" class="modal" hidden>
   <div class="modal-box">
     <div class="modal-head">
-      <span>🖼 絵日記</span>
+      <span id="enikkiTitle">🖼 絵日記</span>
       <button class="lbclose" id="enikkiClose" aria-label="閉じる">✕</button>
     </div>
     <div class="enikki-preview"><img id="enikkiImg" alt="絵日記のプレビュー" /></div>
@@ -1001,6 +1014,20 @@ $('#prevDay').addEventListener('click', () => openDay(addDays(curDate, -1)));
 $('#nextDay').addEventListener('click', () => openDay(addDays(curDate, 1)));
 $('#goToday').addEventListener('click', () => openDay(todayKey()));
 
+/* 🎲 ランダム：日記かスクショがある日の中から1日を選んで飛ぶ（いま開いている日は除く）。
+   スクショの中身はいらないので、画像を戻す手間（hydrate）はかけずに日付だけ見る */
+$('#goRandom').addEventListener('click', async () => {
+  await flushSave();
+  const raw = await tx('readonly', (s) => s.getAll());
+  const days = raw
+    .filter((e) => ((e.text || '').trim() || (e.photos && e.photos.length)) && e.date !== curDate)
+    .map((e) => e.date);
+  if (!days.length) { toast('日記が2日分たまると、ランダムで飛べるようになります'); return; }
+  const k = days[Math.floor(Math.random() * days.length)];
+  await openDay(k);
+  toast(`🎲 ${labelOf(k)}へ`);
+});
+
 /* 文章：打つたびに少し待ってから自動保存 */
 const ta = $('#diaryText');
 function autosize() { ta.style.height = 'auto'; ta.style.height = Math.max(160, ta.scrollHeight + 2) + 'px'; }
@@ -1234,7 +1261,8 @@ function makeMonth(y, m) {
   for (let d = 1; d <= days; d++) if (calEntries.has(toKey(new Date(y, m, d)))) cnt++;
   const head = document.createElement('div');
   head.className = 'mhead';
-  head.innerHTML = `${y}年${m + 1}月${cnt ? `<span class="cnt">${cnt}日ぶん</span>` : ''}`;
+  head.innerHTML = `<span>${y}年${m + 1}月</span>${cnt ? `<span class="cnt">${cnt}日ぶん</span><button class="mbtn">🖼 まとめ</button>` : ''}`;
+  if (cnt) head.querySelector('.mbtn').addEventListener('click', () => openMatome(y, m));
   wrap.appendChild(head);
 
   const grid = document.createElement('div');
@@ -1450,7 +1478,9 @@ $('#wipeBtn').addEventListener('click', async () => {
    1枚の画像（1080×1440 の PNG）にする。
    ============================================================ */
 const EN_W = 1080, EN_H = 1440;
-const enikki = { blob: null, url: null, idx: 0 };
+/* この窓は「絵日記」と「月まとめ」で使い回す。
+   make = 画像を作る関数、name = 保存するときのファイル名 */
+const enikki = { blob: null, url: null, idx: 0, make: null, name: '' };
 
 /* ---- 色の計算（テーマ色 #rrggbb から、紙の色や文字色を作る） ---- */
 function hexToRgb(hex) {
@@ -1619,11 +1649,113 @@ function rrect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
 
+/* ============================================================
+   9.6 月まとめ画像（カレンダーの月の帯の「🖼 まとめ」）
+   カレンダーの形で、日記がある日のマスにその日の1枚目のスクショを入れる。
+   1080×1350（X でトリミングされにくい 4:5）の PNG にする。
+   ============================================================ */
+const MT_W = 1080, MT_H = 1350;
+async function renderMatome(y, m) {
+  await document.fonts.load('800 40px "M PLUS 1p"').catch(() => {});
+  const ac = settings.accent;
+  const paper = mix(ac, '#ffffff', 0.06);
+  const ink = mix(ac, '#2b2b2b', 0.4);
+  const F = '"M PLUS 1p", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif';
+  const c = document.createElement('canvas');
+  c.width = MT_W; c.height = MT_H;
+  const ctx = c.getContext('2d');
+
+  /* この月の日記を集めて、スクショ（小さい版）を先に全部読み込んでおく */
+  const days = new Date(y, m + 1, 0).getDate();
+  const first = new Date(y, m, 1).getDay();
+  const list = [];
+  for (let d = 1; d <= days; d++) list.push(calEntries.get(toKey(new Date(y, m, d))) || null);
+  const imgs = await Promise.all(list.map((e) =>
+    e && e.photos && e.photos.length ? loadImage(e.photos[0].thumb).catch(() => null) : null));
+  const cnt = list.filter(Boolean).length;
+
+  /* 紙と外枠（絵日記とおそろい） */
+  ctx.fillStyle = paper; ctx.fillRect(0, 0, MT_W, MT_H);
+  ctx.strokeStyle = ac; ctx.lineWidth = 6;
+  rrect(ctx, 30, 30, MT_W - 60, MT_H - 60, 36); ctx.stroke();
+
+  /* 見出し：左に「○年○月のポケスリ」、右にアプリ名 */
+  ctx.fillStyle = ac; ctx.textBaseline = 'middle';
+  ctx.font = `800 52px ${F}`; ctx.textAlign = 'left';
+  ctx.fillText(`${y}年${m + 1}月のポケスリ`, 80, 118);
+  ctx.font = `700 30px ${F}`; ctx.textAlign = 'right';
+  ctx.fillStyle = mix(ac, '#ffffff', 0.7);
+  ctx.fillText('ポケスリダイアリー 🌙', MT_W - 80, 118);
+
+  /* 曜日の行 */
+  const gx = 80, gw = MT_W - 160, colW = gw / 7;
+  ctx.font = `800 28px ${F}`; ctx.textAlign = 'center'; ctx.fillStyle = ac;
+  WD.forEach((w, i) => ctx.fillText(w, gx + colW * i + colW / 2, 196));
+
+  /* 日付のマス（週の数に合わせて高さを決める） */
+  const gy = 224, gh = MT_H - 130 - gy;
+  const rows = Math.ceil((first + days) / 7);
+  const rowH = gh / rows, gap = 8;
+  for (let d = 1; d <= days; d++) {
+    const pos = first + d - 1;
+    const x = gx + (pos % 7) * colW + gap / 2, yy = gy + Math.floor(pos / 7) * rowH + gap / 2;
+    const w = colW - gap, h = rowH - gap;
+    const e = list[d - 1], img = imgs[d - 1];
+    ctx.save();
+    rrect(ctx, x, yy, w, h, 14); ctx.clip();
+    if (img) {
+      /* スクショをマスいっぱいに（はみ出たぶんは切る） */
+      const s = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, x + (w - img.naturalWidth * s) / 2, yy + (h - img.naturalHeight * s) / 2,
+                    img.naturalWidth * s, img.naturalHeight * s);
+    } else if (e) {
+      /* 文章だけの日：うすい色にペンの印 */
+      ctx.fillStyle = mix(ac, '#ffffff', 0.22); ctx.fillRect(x, yy, w, h);
+      ctx.fillStyle = ac; ctx.font = `800 44px ${F}`; ctx.textAlign = 'center';
+      ctx.fillText('✎', x + w / 2, yy + h / 2 + 8);
+    } else {
+      /* 日記がない日：ほぼ紙の色 */
+      ctx.fillStyle = alpha(ac, 0.06); ctx.fillRect(x, yy, w, h);
+    }
+    ctx.restore();
+    /* 日付の数字（日記がある日は左上に色つきの丸、ない日はうすい数字） */
+    ctx.textAlign = 'center';
+    if (e) {
+      ctx.fillStyle = ac;
+      ctx.beginPath(); ctx.arc(x + 24, yy + 24, 19, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.font = `800 22px ${F}`;
+      ctx.fillText(String(d), x + 24, yy + 25);
+    } else {
+      ctx.fillStyle = mix(ac, '#ffffff', 0.45); ctx.font = `700 24px ${F}`;
+      ctx.fillText(String(d), x + w / 2, yy + h / 2);
+    }
+  }
+
+  /* いちばん下：日記を書いた日数 */
+  ctx.fillStyle = ink; ctx.font = `800 36px ${F}`; ctx.textAlign = 'left';
+  ctx.fillText(`日記を書いた日：${cnt}日`, 80, MT_H - 82);
+
+  return new Promise((ok) => c.toBlob(ok, 'image/png'));
+}
+async function openMatome(y, m) {
+  enikki.make = () => renderMatome(y, m);
+  enikki.name = `pksl-diary-${y}-${pad(m + 1)}.png`;
+  $('#enikkiTitle').textContent = `🖼 ${y}年${m + 1}月のまとめ`;
+  $('#enikkiPick').innerHTML = '';
+  $('#enikki').hidden = false;
+  document.body.style.overflow = 'hidden';
+  await refreshEnikki();
+}
+
 /* ---- プレビューの窓 ---- */
 async function openEnikki() {
   await flushSave();
   if (!curEntry.photos.length && !(curEntry.text || '').trim()) { toast('スクショか文章を入れてから押してね'); return; }
   enikki.idx = 0;
+  enikki.make = () => renderEnikki(curEntry, enikki.idx);
+  enikki.name = `pksl-diary-${curEntry.date}.png`;
+  $('#enikkiTitle').textContent = '🖼 絵日記';
   $('#enikki').hidden = false;
   document.body.style.overflow = 'hidden';
   renderPick();
@@ -1647,7 +1779,7 @@ async function refreshEnikki() {
   $('#enikkiNote').textContent = '作っています…';
   $('#enikkiShare').disabled = $('#enikkiSave').disabled = true;
   try {
-    enikki.blob = await renderEnikki(curEntry, enikki.idx);
+    enikki.blob = await enikki.make();
     if (enikki.url) URL.revokeObjectURL(enikki.url);
     enikki.url = URL.createObjectURL(enikki.blob);
     $('#enikkiImg').src = enikki.url;
@@ -1662,7 +1794,7 @@ async function refreshEnikki() {
     $('#enikkiNote').textContent = '画像を作れませんでした';
   }
 }
-function enikkiFile() { return new File([enikki.blob], `pksl-diary-${curEntry.date}.png`, { type: 'image/png' }); }
+function enikkiFile() { return new File([enikki.blob], enikki.name, { type: 'image/png' }); }
 function closeEnikki() {
   $('#enikki').hidden = true;
   document.body.style.overflow = '';
@@ -1676,7 +1808,7 @@ $('#enikkiShare').addEventListener('click', async () => {
 });
 $('#enikkiSave').addEventListener('click', () => {
   const a = document.createElement('a');
-  a.href = enikki.url; a.download = `pksl-diary-${curEntry.date}.png`;
+  a.href = enikki.url; a.download = enikki.name;
   document.body.appendChild(a); a.click(); a.remove();
   toast('保存しました（iPhone は「ファイル」に入ります）');
 });
