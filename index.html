@@ -26,7 +26,7 @@
 <meta name="theme-color" id="metaTheme" content="#c43d74" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@700;800&family=Klee+One:wght@600&display=swap" rel="stylesheet" />
 <style>
 /* ============================================================
    文字の太さ：基本は Heavy(800)。13.5px 未満の小さい文字だけ Bold(700)。
@@ -322,6 +322,61 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
 .btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
 .note { font-size: 12.5px; font-weight: 700; color: var(--muted); margin: 6px 0 0; line-height: 1.6; }
 
+/* ===== ゆめのかけら おこづかい帳 =====
+   --shard（かけらの黄色）と --exp（リサーチEXPの青）はゲーム画面に合わせた「意味を持つ色」なので固定 */
+:root { --shard: #e39a12; --exp: #3a8ee6; }
+/* おこづかい帳のタブを開いている間だけ、テーマ色をメタモンっぽい薄紫に差し替える。
+   ほかの色（背景・線・文字）はぜんぶ --accent から作っているので、ここを変えるだけで全体が紫になる */
+body.kk-mode { --accent: #a47bc9; }
+body.kk-mode[data-theme="light"] { --bg: color-mix(in srgb, var(--accent) 9%, #ffffff); }
+/* 文字は教科書体ふうの Klee One（いちばん太いのが 600） */
+#view-kakera { font-family: "Klee One", "UD デジタル 教科書体 N-R", "Yu Mincho", serif; font-weight: 600; }
+.kk-sum { text-align: center; }
+.kk-big { font-size: 30px; line-height: 1.3; color: var(--shard); }
+.kk-big small { font-size: 14px; color: var(--muted); margin-left: 4px; }
+.kk-month { margin: 8px 0 10px; }
+/* 先月・今月の稼ぎを横に2つ並べる箱 */
+.kk-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.kk-cell { background: var(--soft); border-radius: 12px; padding: 8px 6px; line-height: 1.5; }
+.kk-mid { font-size: 20px; line-height: 1.4; }
+/* 今週の稼ぎと1日平均 */
+.kk-week { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; padding: 8px 6px; border: 1px dashed var(--line); border-radius: 12px; }
+.kk-plus { color: var(--ok); }
+.kk-minus { color: var(--danger); }
+.kk-exp { color: var(--exp); }
+.kk-shard { color: var(--shard); }
+.kk-form .seg { display: flex; margin-bottom: 10px; }
+.kk-form .seg button { flex: 1; }
+.kk-ocr { width: 100%; }
+#kkOcrStatus { min-height: 1.4em; margin-top: 4px; text-align: center; }
+#kkOcrStatus.err { color: var(--danger); }
+#kkOcrStatus.ok { color: var(--ok); }
+.kk-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.kk-row > span { width: 6.8em; flex-shrink: 0; }
+.kk-row input {
+  flex: 1; min-width: 0; padding: 9px 12px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+  font-family: inherit; font-size: 16px; text-align: right; outline: none;
+}
+.kk-row input[type="date"], .kk-row input#kkMemo { text-align: left; }
+.kk-row input:focus { border-color: var(--strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.kk-row input::placeholder { color: var(--muted); font-size: 13px; font-weight: 700; }
+.kk-check { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; font-size: 13px; font-weight: 700; line-height: 1.5; cursor: pointer; }
+.kk-check input { width: 20px; height: 20px; margin: 0; flex-shrink: 0; accent-color: var(--strong); }
+.kk-preview { margin-top: 10px; padding: 8px 12px; border-radius: 12px; background: var(--soft); font-size: 13px; font-weight: 700; text-align: center; }
+.kk-form .btnrow { margin-top: 14px; }
+.kk-form .btnrow .primary { flex: 1; }
+.kk-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  border: none; border-bottom: 1px solid var(--line); background: none; padding: 10px 6px;
+}
+.kk-item .kk-d { flex-shrink: 0; white-space: nowrap; font-size: 13px; font-weight: 700; color: var(--muted); }
+.kk-item .kk-t { flex: 1; min-width: 0; }
+.kk-item .kk-t .small { display: block; color: var(--muted); }
+.kk-item .kk-a { font-size: 16px; white-space: nowrap; }
+.kk-item.editing { background: var(--soft); border-radius: 10px; }
+.kk-list .month { margin-bottom: 18px; }
+
 /* ===== 下の固定タブ ===== */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
@@ -469,6 +524,59 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
     <p class="note" style="text-align:center">日記がある日はリングに色が付きます。日付を押すとその日に飛びます。</p>
   </section>
 
+  <!-- ===== ゆめのかけら おこづかい帳 ===== -->
+  <section id="view-kakera" class="view" hidden>
+    <h2>💰 ゆめのかけら おこづかい帳</h2>
+
+    <!-- 手持ちと、先月・今月・今週の稼ぎ -->
+    <div class="card kk-sum">
+      <div class="small muted">いまの手持ち（記録から計算）</div>
+      <div class="kk-big" id="kkBalance">0</div>
+      <div class="kk-month" id="kkMonthSum"></div>
+      <button class="chip" id="kkAdjust">🔧 ゲームの手持ちに合わせる</button>
+    </div>
+
+    <!-- 記録する欄 -->
+    <div class="card kk-form" id="kkForm">
+      <div class="seg" id="kkKindSeg">
+        <button data-kind="in" class="on">🌙 もらった</button>
+        <button data-kind="out">🛒 使った</button>
+      </div>
+
+      <div id="kkInBox">
+        <button class="btn kk-ocr" id="kkOcrBtn">📷 リサーチ結果のスクショを読み取る</button>
+        <div class="small muted" id="kkOcrStatus"></div>
+        <label class="kk-row"><span class="kk-exp">リサーチEXP</span><input type="text" inputmode="numeric" id="kkExp" placeholder="0" autocomplete="off" /></label>
+        <label class="kk-row"><span class="kk-shard">ゆめのかけら</span><input type="text" inputmode="numeric" id="kkShards" placeholder="0" autocomplete="off" /></label>
+        <label class="kk-check"><input type="checkbox" id="kkMaxed" /><span>リサーチランクがカンストしている<br /><span class="muted">（リサーチEXP もゆめのかけらに変わる）</span></span></label>
+      </div>
+
+      <div id="kkOutBox" hidden>
+        <label class="kk-row"><span class="kk-shard">使ったかけら</span><input type="text" inputmode="numeric" id="kkSpend" placeholder="0" autocomplete="off" /></label>
+      </div>
+
+      <label class="kk-row"><span>メモ</span><input type="text" id="kkMemo" list="kkMemoList" placeholder="なくてもOK" autocomplete="off" /></label>
+      <datalist id="kkMemoList">
+        <option value="レベル上げ"></option>
+        <option value="進化"></option>
+        <option value="アメを使って育成"></option>
+        <option value="ショップ"></option>
+      </datalist>
+      <label class="kk-row"><span>日付</span><input type="date" id="kkDate" /></label>
+
+      <div class="kk-preview" id="kkPreview"></div>
+
+      <div class="btnrow">
+        <button class="btn primary" id="kkSave">記録する</button>
+        <button class="btn" id="kkCancel" hidden>やめる</button>
+        <button class="btn danger" id="kkDel" hidden>消す</button>
+      </div>
+    </div>
+
+    <div class="kk-list" id="kkList"></div>
+    <p class="note" style="text-align:center">記録の行を押すと、直したり消したりできます。<br />スクショは読み取りに使うだけで、保存はしません。</p>
+  </section>
+
   <!-- ===== 設定 ===== -->
   <section id="view-settings" class="view" hidden>
     <h2>🎨 色・設定</h2>
@@ -508,7 +616,7 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
         <button class="btn" id="importBtn">📥 読み込む</button>
       </div>
       <p class="note">
-        日記とスクショをぜんぶ1つのファイルにまとめて保存します。<br />
+        日記とスクショ、おこづかい帳をぜんぶ1つのファイルにまとめて保存します。<br />
         ブラウザのデータを消したり、スマホを買い替えたりしても、このファイルがあれば元に戻せます。<br />
         <b>ときどき書き出して、写真フォルダやクラウドに置いておくのがおすすめ。</b>
       </p>
@@ -518,7 +626,7 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
     <div class="section">
       <h3>ぜんぶ消す</h3>
       <button class="btn danger" id="wipeBtn">🗑 日記をすべて削除</button>
-      <p class="note">この端末のブラウザに保存されている日記をすべて消します。元に戻せないので、先に「書き出す」をしておくと安心です。</p>
+      <p class="note">この端末のブラウザに保存されている日記をすべて消します（おこづかい帳は消えません）。元に戻せないので、先に「書き出す」をしておくと安心です。</p>
     </div>
 
     <p class="note" style="text-align:center;margin-top:30px">ポケスリダイアリー v1.0</p>
@@ -530,6 +638,7 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
   <button data-view="day" class="on"><span class="ico">📝</span><span class="lbl">今日</span></button>
   <button data-view="timeline"><span class="ico">📜</span><span class="lbl">タイムライン</span></button>
   <button data-view="calendar"><span class="ico">📅</span><span class="lbl">カレンダー</span></button>
+  <button data-view="kakera"><span class="ico">💰</span><span class="lbl">おこづかい</span></button>
   <button data-view="settings"><span class="ico">🎨</span><span class="lbl">色・設定</span></button>
 </nav>
 
@@ -561,6 +670,7 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
 
 <input type="file" id="fileInput" accept="image/*" multiple hidden />
 <input type="file" id="importInput" accept="application/json,.json" hidden />
+<input type="file" id="kkFileInput" accept="image/*" hidden />
 <div id="toast"></div>
 
 <script>
@@ -718,7 +828,7 @@ const PRESETS = [
   ['#8b5cf6', 'むらさき'], ['#3b82f6', 'あお'], ['#0ea5a4', 'みずいろ'],
   ['#2e9e5b', 'みどり'], ['#e08a1e', 'オレンジ'], ['#6b4f3a', 'こげ茶'],
 ];
-const defaults = { accent: '#c43d74', mode: 'auto', moon: 'fullnew' };   // moon: none / fullnew / quarters
+const defaults = { accent: '#c43d74', mode: 'auto', moon: 'fullnew', kkMaxed: false };   // moon: none / fullnew / quarters、kkMaxed: リサーチランクがカンストか
 let settings = loadSettings();
 
 function loadSettings() {
@@ -874,6 +984,8 @@ function showView(name) {
   if (name === 'timeline') renderTimeline();
   if (name === 'calendar') renderCalendar();
   if (name === 'settings') renderSettings();
+  if (name === 'kakera') renderKakera();
+  document.body.classList.toggle('kk-mode', name === 'kakera');   // おこづかい帳だけ薄紫に
 }
 document.querySelectorAll('.tabbar button').forEach((b) => {
   b.addEventListener('click', async () => {
@@ -1411,9 +1523,11 @@ function blobToDataURL(blob) {
 }
 $('#exportBtn').addEventListener('click', async () => {
   const all = await dbGetAll();
-  if (!all.length) { toast('まだ日記がありません'); return; }
+  const kk = kkLoad();
+  if (!all.length && !kk.length) { toast('まだ日記がありません'); return; }
   toast('まとめています…', 4000);
-  const out = { app: 'pksl-diary', version: 1, exportedAt: new Date().toISOString(), settings, entries: [] };
+  /* kakera = おこづかい帳の記録（あとから足したもの。古いバックアップには入っていない） */
+  const out = { app: 'pksl-diary', version: 1, exportedAt: new Date().toISOString(), settings, entries: [], kakera: kk };
   for (const e of all) {
     out.entries.push({
       date: e.date, text: e.text || '', updatedAt: e.updatedAt || 0,
@@ -1426,7 +1540,7 @@ $('#exportBtn').addEventListener('click', async () => {
   a.download = `pksl-diary-${todayKey()}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-  toast(`${all.length}日分を書き出しました`);
+  toast(`${all.length}日分${kk.length ? `とおこづかい帳${kk.length}件` : ''}を書き出しました`);
 });
 
 /* ----- バックアップの読み込み（同じ日付は置き換え、ほかはそのまま） ----- */
@@ -1438,7 +1552,13 @@ $('#importInput').addEventListener('change', async (e) => {
   let data;
   try { data = JSON.parse(await f.text()); } catch { toast('このファイルは読めませんでした'); return; }
   if (!data || data.app !== 'pksl-diary' || !Array.isArray(data.entries)) { toast('ポケスリダイアリーのバックアップではないようです'); return; }
-  if (!confirm(`${data.entries.length}日分の日記を読み込みます。\n同じ日付の日記があれば、ファイルの内容で置き換わります。\nよろしいですか？`)) return;
+  const kkIn = Array.isArray(data.kakera) ? data.kakera.filter((r) => r && r.id && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) : [];
+  if (!confirm(`${data.entries.length}日分の日記${kkIn.length ? `と、おこづかい帳${kkIn.length}件` : ''}を読み込みます。\n同じ日付の日記（同じおこづかい帳の記録）があれば、ファイルの内容で置き換わります。\nよろしいですか？`)) return;
+  /* おこづかい帳：同じ記録（id）は置き換え、それ以外は足す */
+  if (kkIn.length) {
+    const ids = new Set(kkIn.map((r) => r.id));
+    kkSaveAll(kkLoad().filter((r) => !ids.has(r.id)).concat(kkIn));
+  }
   toast('読み込んでいます…', 6000);
   let n = 0;
   try {
@@ -1470,6 +1590,347 @@ $('#wipeBtn').addEventListener('click', async () => {
   await dbClear();
   toast('すべて削除しました');
   await openDay(todayKey());
+});
+
+/* ============================================================
+   9.3 ゆめのかけら おこづかい帳
+   1件 = { id, date:'2026-10-20', kind, amount, exp, shards, maxed, memo, at }
+     kind 'in'     … 睡眠リサーチでもらった。amount = かけら（カンストなら＋リサーチEXP）
+     kind 'out'    … 使った。amount = 使ったかけら（正の数で持つ）
+     kind 'adjust' … 「ゲームの手持ちに合わせる」で足し引きした差（＋にも−にもなる）
+   1件は小さい文字だけなので、日記（IndexedDB）とは分けて localStorage に保存する。
+   ============================================================ */
+const KK_KEY = 'pksl-diary-kakera';
+const fmt = (n) => Number(n || 0).toLocaleString('ja-JP');
+/* 「26,637」「２６６３７」などの入力から数だけ取り出す（全角数字も半角に） */
+function toNum(s) {
+  const d = String(s || '').replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/\D/g, '');
+  return d ? parseInt(d, 10) : 0;
+}
+function kkLoad() {
+  try { const a = JSON.parse(localStorage.getItem(KK_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch { return []; }
+}
+function kkSaveAll(list) {
+  try { localStorage.setItem(KK_KEY, JSON.stringify(list)); return true; }
+  catch { toast('保存できませんでした（ブラウザの保存場所がいっぱいかも）'); return false; }
+}
+/* 手持ちへの影響（＋か−か）。リサーチEXPのぶんは、カンストのときだけ amount に入っている */
+const kkSigned = (r) => (r.kind === 'out' ? -r.amount : r.amount);
+/* リサーチEXP（かけらにならなかったぶん）の合計に足す量 */
+const kkExpGain = (r) => (r.kind === 'in' && !r.maxed ? r.exp || 0 : 0);
+
+let kkKind = 'in';        // いま入力しているのは「もらった」か「使った」か
+let kkEditing = null;     // 直している記録の id（新しく記録するときは null）
+
+function kkSetKind(kind) {
+  kkKind = kind;
+  document.querySelectorAll('#kkKindSeg button').forEach((b) => b.classList.toggle('on', b.dataset.kind === kind));
+  $('#kkInBox').hidden = kind !== 'in';
+  $('#kkOutBox').hidden = kind !== 'out';
+  kkPreview();
+}
+/* 入力欄を空にして「新しく記録する」状態へ */
+function kkResetForm() {
+  kkEditing = null;
+  $('#kkExp').value = ''; $('#kkShards').value = ''; $('#kkSpend').value = ''; $('#kkMemo').value = '';
+  $('#kkDate').value = todayKey();
+  $('#kkMaxed').checked = !!settings.kkMaxed;
+  $('#kkSave').textContent = '記録する';
+  $('#kkCancel').hidden = true; $('#kkDel').hidden = true;
+  $('#kkKindSeg').hidden = false;
+  kkSetKind(kkKind === 'adjust' ? 'in' : kkKind);
+}
+/* 入力中の内容で「何がいくつ記録されるか」を下に表示 */
+function kkPreview() {
+  const el = $('#kkPreview');
+  if (kkKind === 'out') {
+    const v = toNum($('#kkSpend').value);
+    el.innerHTML = v ? `手持ちから <span class="kk-minus">−${fmt(v)}</span>` : 'いくつ使ったか入れてください';
+    return;
+  }
+  if (kkKind === 'adjust') {
+    const v = toNum($('#kkSpend').value);
+    el.textContent = `ずれを直した記録（${fmt(v)}）`;
+    return;
+  }
+  const exp = toNum($('#kkExp').value), sh = toNum($('#kkShards').value);
+  if (!exp && !sh) { el.textContent = 'スクショを読み取るか、数字を入れてください'; return; }
+  el.innerHTML = $('#kkMaxed').checked
+    ? `記録されるかけら：<span class="kk-shard">${fmt(sh)}</span> ＋ <span class="kk-exp">${fmt(exp)}</span> ＝ <span class="kk-plus">+${fmt(sh + exp)}</span>`
+    : `かけら <span class="kk-plus">+${fmt(sh)}</span> ／ リサーチEXP <span class="kk-exp">+${fmt(exp)}</span>`;
+}
+
+function renderKakera() {
+  if (!kkEditing && !$('#kkDate').value) kkResetForm();
+  const list = kkLoad();
+  /* 手持ちと今月のまとめ */
+  const bal = list.reduce((s, r) => s + kkSigned(r), 0);
+  $('#kkBalance').innerHTML = `${fmt(bal)}<small>こ</small>`;
+  /* 「稼ぎ」= 睡眠リサーチでもらったかけら。条件(ok)に合う記録だけ足す */
+  const sumOf = (ok) => {
+    const rs = list.filter((r) => ok(r.date));
+    return {
+      earn: rs.filter((r) => r.kind === 'in').reduce((s, r) => s + r.amount, 0),
+      spent: rs.filter((r) => r.kind === 'out').reduce((s, r) => s + r.amount, 0),
+      exp: rs.reduce((s, r) => s + kkExpGain(r), 0),
+    };
+  };
+  const today = todayKey();
+  const ym = today.slice(0, 7);
+  const pm = (() => { const d = fromKey(today); d.setDate(1); d.setMonth(d.getMonth() - 1); return toKey(d).slice(0, 7); })();
+  /* 先月・今月を横に並べる。小さい字で使った分と、かけらにならなかったリサーチEXP */
+  const monthCell = (label, m) => {
+    const s = sumOf((dt) => dt.startsWith(m));
+    return `<div class="kk-cell"><div class="small muted">${label}</div>` +
+      `<div class="kk-mid kk-plus">+${fmt(s.earn)}</div>` +
+      `<div class="small muted">使った <span class="kk-minus">−${fmt(s.spent)}</span>` +
+      (s.exp ? `<br>リサーチEXP <span class="kk-exp">+${fmt(s.exp)}</span>` : '') + `</div></div>`;
+  };
+  /* 今週（月曜はじまり）の稼ぎと、1日あたりの平均（今週すでに過ぎた日数で割る。今日も1日に数える） */
+  const wd = (fromKey(today).getDay() + 6) % 7;            // 月曜=0 … 日曜=6
+  const monday = addDays(today, -wd);
+  const wk = sumOf((dt) => dt >= monday && dt <= today);
+  const days = wd + 1;
+  const md = fromKey(monday);
+  $('#kkMonthSum').innerHTML =
+    `<div class="kk-cols">${monthCell('先月の稼ぎ', pm)}${monthCell('今月の稼ぎ', ym)}</div>` +
+    `<div class="kk-week">` +
+      `<div><span class="small muted">今週（${md.getMonth() + 1}/${md.getDate()}〜）の稼ぎ</span><div class="kk-mid kk-plus">+${fmt(wk.earn)}</div></div>` +
+      `<div><span class="small muted">1日あたり（${days}日分の平均）</span><div class="kk-mid kk-plus">+${fmt(Math.round(wk.earn / days))}</div></div>` +
+    `</div>`;
+
+  /* 記録の一覧（月ごと・新しい順） */
+  const box = $('#kkList');
+  box.innerHTML = '';
+  if (!list.length) {
+    box.innerHTML = '<div class="empty"><div class="big">💰</div>まだ記録がありません。<br>上の「📷 スクショから読み取る」から始めてみてください。</div>';
+    return;
+  }
+  const sorted = list.slice().sort((a, b) => (a.date === b.date ? b.at - a.at : a.date < b.date ? 1 : -1));
+  const months = new Map();
+  for (const r of sorted) {
+    const k = r.date.slice(0, 7);
+    if (!months.has(k)) months.set(k, []);
+    months.get(k).push(r);
+  }
+  for (const [k, rows] of months) {
+    const [y, m] = k.split('-').map(Number);
+    const mIn = rows.filter((r) => r.kind === 'in').reduce((s, r) => s + r.amount, 0);
+    const mOut = rows.filter((r) => r.kind === 'out').reduce((s, r) => s + r.amount, 0);
+    const sec = document.createElement('div');
+    sec.className = 'month';
+    sec.innerHTML = `<div class="mhead"><span>${y}年${m}月</span><span class="cnt">+${fmt(mIn)} ／ −${fmt(mOut)}</span></div>`;
+    for (const r of rows) {
+      const d = fromKey(r.date);
+      const b = document.createElement('button');
+      b.className = 'kk-item' + (r.id === kkEditing ? ' editing' : '');
+      let title, sub = '', amt;
+      if (r.kind === 'in') {
+        title = '🌙 睡眠リサーチ';
+        sub = r.maxed
+          ? `かけら ${fmt(r.shards)} ＋ EXP ${fmt(r.exp)}（カンスト）`
+          : `かけら ${fmt(r.shards)}／リサーチEXP ${fmt(r.exp)}`;
+        amt = `<span class="kk-plus">+${fmt(r.amount)}</span>`;
+      } else if (r.kind === 'out') {
+        title = '🛒 ' + (r.memo ? '' : '使った');
+        amt = `<span class="kk-minus">−${fmt(r.amount)}</span>`;
+      } else {
+        title = '🔧 手持ちを合わせた';
+        amt = r.amount >= 0 ? `<span class="kk-plus">+${fmt(r.amount)}</span>` : `<span class="kk-minus">−${fmt(-r.amount)}</span>`;
+      }
+      b.innerHTML = `<span class="kk-d">${d.getMonth() + 1}/${d.getDate()}（${WD[d.getDay()]}）</span>` +
+        `<span class="kk-t"><span class="t"></span><span class="small"></span></span><span class="kk-a">${amt}</span>`;
+      /* メモは自分で打った文字なので、textContent で入れる（HTML として解釈させない） */
+      b.querySelector('.t').textContent = title + (r.kind === 'out' && r.memo ? r.memo : '');
+      const smallText = [sub, r.kind !== 'out' && r.memo ? r.memo : ''].filter(Boolean).join('　');
+      b.querySelector('.small').textContent = smallText;
+      if (!smallText) b.querySelector('.small').remove();
+      b.addEventListener('click', () => kkEdit(r.id));
+      sec.appendChild(b);
+    }
+    box.appendChild(sec);
+  }
+}
+
+/* 一覧の行を押したとき：その記録を入力欄に出して、直せるようにする */
+function kkEdit(id) {
+  const r = kkLoad().find((x) => x.id === id);
+  if (!r) return;
+  kkEditing = id;
+  kkKind = r.kind;
+  if (r.kind === 'in') {
+    $('#kkExp').value = fmt(r.exp); $('#kkShards').value = fmt(r.shards); $('#kkMaxed').checked = !!r.maxed;
+  } else {
+    $('#kkSpend').value = fmt(Math.abs(r.amount));
+  }
+  $('#kkMemo').value = r.memo || '';
+  $('#kkDate').value = r.date;
+  $('#kkSave').textContent = '直す';
+  $('#kkCancel').hidden = false; $('#kkDel').hidden = false;
+  /* 「手持ちを合わせた」記録は、日付とメモだけ直せる（数は「合わせる」をもう一度やればよい） */
+  $('#kkKindSeg').hidden = r.kind === 'adjust';
+  if (r.kind === 'adjust') { kkKind = 'adjust'; $('#kkInBox').hidden = true; $('#kkOutBox').hidden = true; kkPreview(); }
+  else kkSetKind(r.kind);
+  $('#kkOcrStatus').textContent = '';
+  renderKakera();
+  $('#kkForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+$('#kkKindSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (b) kkSetKind(b.dataset.kind);
+});
+['#kkExp', '#kkShards', '#kkSpend'].forEach((s) => $(s).addEventListener('input', kkPreview));
+/* 打ち終わったら「26,637」のようにカンマを付けて見やすく */
+['#kkExp', '#kkShards', '#kkSpend'].forEach((s) => $(s).addEventListener('blur', (e) => {
+  if (e.target.value.trim()) e.target.value = fmt(toNum(e.target.value));
+}));
+/* カンストのチェックは覚えておく（毎回付け直さなくていいように）。直している最中の変更は覚えない */
+$('#kkMaxed').addEventListener('change', (e) => {
+  if (!kkEditing) { settings.kkMaxed = e.target.checked; saveSettings(); }
+  kkPreview();
+});
+
+$('#kkSave').addEventListener('click', () => {
+  const date = $('#kkDate').value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { toast('日付を入れてください'); return; }
+  const memo = $('#kkMemo').value.trim();
+  const list = kkLoad();
+  const old = kkEditing ? list.find((x) => x.id === kkEditing) : null;
+  let rec;
+  if (kkKind === 'in') {
+    const exp = toNum($('#kkExp').value), shards = toNum($('#kkShards').value), maxed = $('#kkMaxed').checked;
+    if (!exp && !shards) { toast('リサーチEXP か ゆめのかけら を入れてください'); return; }
+    rec = { kind: 'in', exp, shards, maxed, amount: shards + (maxed ? exp : 0) };
+  } else if (kkKind === 'out') {
+    const v = toNum($('#kkSpend').value);
+    if (!v) { toast('使ったかけらの数を入れてください'); return; }
+    rec = { kind: 'out', amount: v };
+  } else {
+    rec = { kind: 'adjust', amount: old ? old.amount : 0 };
+  }
+  rec = Object.assign(rec, { id: old ? old.id : Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date, memo, at: old ? old.at : Date.now() });
+  if (old) list[list.indexOf(old)] = rec; else list.push(rec);
+  if (!kkSaveAll(list)) return;
+  toast(old ? '直しました' : `記録しました（${kkSigned(rec) >= 0 ? '+' : '−'}${fmt(Math.abs(kkSigned(rec)))}）`);
+  $('#kkOcrStatus').textContent = '';
+  kkResetForm();
+  renderKakera();
+});
+$('#kkCancel').addEventListener('click', () => { kkResetForm(); renderKakera(); });
+$('#kkDel').addEventListener('click', () => {
+  if (!kkEditing || !confirm('この記録を消しますか？')) return;
+  kkSaveAll(kkLoad().filter((x) => x.id !== kkEditing));
+  toast('消しました');
+  kkResetForm();
+  renderKakera();
+});
+
+/* 🔧 ゲームの手持ちに合わせる：ゲームの数を聞いて、記録とのずれを1件の記録として足す */
+$('#kkAdjust').addEventListener('click', () => {
+  const list = kkLoad();
+  const bal = list.reduce((s, r) => s + kkSigned(r), 0);
+  const ans = prompt(`ゲームでいま持っている「ゆめのかけら」の数を入れてください。\n（記録から計算した手持ち：${fmt(bal)}）`, '');
+  if (ans === null || !ans.trim()) return;
+  const diff = toNum(ans) - bal;
+  if (!diff) { toast('ぴったり合っています'); return; }
+  list.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind: 'adjust', amount: diff, date: todayKey(), memo: '', at: Date.now() });
+  if (!kkSaveAll(list)) return;
+  toast(`手持ちを ${fmt(toNum(ans))} に合わせました`);
+  renderKakera();
+});
+
+/* ----- スクショの読み取り（OCR = 画像の中の文字を読む仕組み） -----
+   Tesseract.js という、ブラウザの中だけで動く読み取りの道具を使う。画像はどこにも送らない。
+   日記のほうでは使わないので、ボタンを押したときにはじめて読み込む（ふだんの起動を重くしないため）。 */
+let kkWorkerP = null;
+function kkWorker() {
+  if (!kkWorkerP) {
+    kkWorkerP = (async () => {
+      if (!window.Tesseract) {
+        await new Promise((ok, ng) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+          s.onload = ok;
+          s.onerror = () => ng(new Error('読み取りの道具を読み込めませんでした。ネットにつながっているか確認してください。'));
+          document.head.appendChild(s);
+        });
+      }
+      const w = await Tesseract.createWorker('eng');
+      /* 数字とカンマだけを探させる。PSM 11 = 「バラバラに置かれた文字を拾う」読み方 */
+      await w.setParameters({ tessedit_char_whitelist: '0123456789,', tessedit_pageseg_mode: '11' });
+      return w;
+    })();
+    kkWorkerP.catch(() => { kkWorkerP = null; });   // 失敗したら次に押したときやり直す
+  }
+  return kkWorkerP;
+}
+/* 下ごしらえ：数字が並ぶ「右側・画面の中ほどから下」だけを切り出して拡大し、白黒にする。
+   数字は緑・青・黄色なので、「白っぽくない所 = 黒」にすれば黄色の数字も消えずに残る */
+function kkCrop(img) {
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const x0 = Math.round(W * 0.58), y0 = Math.round(H * 0.38);
+  const w = W - x0, h = Math.round(H * 0.84) - y0;
+  const scale = Math.min(3, 1200 / w);
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, x0, y0, w, h, 0, 0, c.width, c.height);
+  const im = ctx.getImageData(0, 0, c.width, c.height), p = im.data;
+  for (let i = 0; i < p.length; i += 4) {
+    const v = Math.min(p[i], p[i + 1], p[i + 2]) < 175 ? 0 : 255;
+    p[i] = p[i + 1] = p[i + 2] = v;
+  }
+  ctx.putImageData(im, 0, 0);
+  return c;
+}
+/* 読めた文字を行ごとにまとめて、上から順に数を並べる。
+   画面は上から「発見した寝顔 → リサーチEXP → ゆめのかけら」なので、最後の2つが EXP とかけら */
+function kkPickNumbers(data) {
+  const words = (data.words || []).filter((w) => /\d/.test(w.text) && w.confidence > 30);
+  words.sort((a, b) => a.bbox.y0 - b.bbox.y0);
+  const lines = [];
+  for (const w of words) {
+    const cy = (w.bbox.y0 + w.bbox.y1) / 2;
+    const ln = lines.find((l) => Math.abs(l.cy - cy) < (w.bbox.y1 - w.bbox.y0) * 0.6);
+    if (ln) ln.words.push(w); else lines.push({ cy, words: [w] });
+  }
+  return lines
+    .map((l) => toNum(l.words.sort((a, b) => a.bbox.x0 - b.bbox.x0).map((w) => w.text).join('')))
+    .filter((n) => n > 0);
+}
+$('#kkOcrBtn').addEventListener('click', () => $('#kkFileInput').click());
+$('#kkFileInput').addEventListener('change', async (e) => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  const st = $('#kkOcrStatus'), btn = $('#kkOcrBtn');
+  btn.disabled = true;
+  st.className = 'small muted';
+  st.textContent = '読み取りの準備中…（はじめての時は十数秒かかります）';
+  try {
+    const w = await kkWorker();
+    st.textContent = '読み取り中…';
+    const img = await loadImage(f);
+    const nums = kkPickNumbers((await w.recognize(kkCrop(img))).data);
+    console.log('[おこづかい帳] 読み取った数（上から順）', nums);
+    if (nums.length < 2) throw new Error('数字を見つけられませんでした。「睡眠リサーチ結果」の画面のスクショか確認して、ちがっていたら手で入れてください。');
+    const [exp, shards] = nums.slice(-2);
+    if (kkEditing) kkResetForm();
+    kkSetKind('in');
+    $('#kkExp').value = fmt(exp);
+    $('#kkShards').value = fmt(shards);
+    kkPreview();
+    st.className = 'small ok';
+    st.textContent = '✅ 読み取りました。ゲームの画面と数字が合っているか確かめてから「記録する」を押してください';
+  } catch (err) {
+    console.error(err);
+    st.className = 'small err';
+    st.textContent = err.message || '読み取りに失敗しました';
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 /* ============================================================
