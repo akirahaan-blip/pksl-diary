@@ -1622,9 +1622,12 @@ const kkExpGain = (r) => (r.kind === 'in' && !r.maxed ? r.exp || 0 : 0);
 
 let kkKind = 'in';        // いま入力しているのは「もらった」か「使った」か
 let kkEditing = null;     // 直している記録の id（新しく記録するときは null）
+let kkDateTouched = false; // 日付を自分で変えたか（変えたら勝手に戻さない）
 
 function kkSetKind(kind) {
   kkKind = kind;
+  /* 日付の初期値：リサーチ結果は起きた翌朝に入れることが多いので「もらった」は前日、「使った」は今日 */
+  if (!kkEditing && !kkDateTouched) $('#kkDate').value = kind === 'in' ? addDays(todayKey(), -1) : todayKey();
   document.querySelectorAll('#kkKindSeg button').forEach((b) => b.classList.toggle('on', b.dataset.kind === kind));
   $('#kkInBox').hidden = kind !== 'in';
   $('#kkOutBox').hidden = kind !== 'out';
@@ -1634,7 +1637,7 @@ function kkSetKind(kind) {
 function kkResetForm() {
   kkEditing = null;
   $('#kkExp').value = ''; $('#kkShards').value = ''; $('#kkSpend').value = ''; $('#kkMemo').value = '';
-  $('#kkDate').value = todayKey();
+  kkDateTouched = false;   // 日付は下の kkSetKind で、種類に合わせて入れ直す
   $('#kkMaxed').checked = !!settings.kkMaxed;
   $('#kkSave').textContent = '記録する';
   $('#kkCancel').hidden = true; $('#kkDel').hidden = true;
@@ -1782,6 +1785,7 @@ $('#kkKindSeg').addEventListener('click', (e) => {
   if (b) kkSetKind(b.dataset.kind);
 });
 ['#kkExp', '#kkShards', '#kkSpend'].forEach((s) => $(s).addEventListener('input', kkPreview));
+$('#kkDate').addEventListener('input', () => { kkDateTouched = true; });
 /* 打ち終わったら「26,637」のようにカンマを付けて見やすく */
 ['#kkExp', '#kkShards', '#kkSpend'].forEach((s) => $(s).addEventListener('blur', (e) => {
   if (e.target.value.trim()) e.target.value = fmt(toNum(e.target.value));
