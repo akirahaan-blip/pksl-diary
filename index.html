@@ -538,7 +538,7 @@ body.kk-mode[data-theme="light"] { --bg: color-mix(in srgb, var(--accent) 9%, #f
       <div class="small muted">いまの手持ち（記録から計算）</div>
       <div class="kk-big" id="kkBalance">0</div>
       <div class="kk-month" id="kkMonthSum"></div>
-      <button class="chip" id="kkAdjust">🔧 ゲームの手持ちに合わせる</button>
+      <button class="chip" id="kkAdjust">✨ ゲームの手持ちを入れて、スキル分を出す</button>
     </div>
 
     <!-- 記録する欄 -->
@@ -1602,7 +1602,8 @@ $('#wipeBtn').addEventListener('click', async () => {
    1件 = { id, date:'2026-10-20', kind, amount, exp, shards, maxed, memo, at }
      kind 'in'     … 睡眠リサーチでもらった。amount = かけら（カンストなら＋リサーチEXP）
      kind 'out'    … 使った。amount = 使ったかけら（正の数で持つ）
-     kind 'adjust' … 「ゲームの手持ちに合わせる」で足し引きした差（＋にも−にもなる）
+     kind 'skill'  … ゲームの手持ちが記録より多かった差。「ゆめのかけらゲット」スキルでもらった分とみなす（稼ぎに入れる）
+     kind 'adjust' … ゲームの手持ちが記録より少なかったときの差（−）。古いデータには＋のものもある
    1件は小さい文字だけなので、日記（IndexedDB）とは分けて localStorage に保存する。
    ============================================================ */
 const KK_KEY = 'pksl-diary-kakera';
@@ -1624,6 +1625,10 @@ function kkSaveAll(list) {
 const kkSigned = (r) => (r.kind === 'out' ? -r.amount : r.amount);
 /* リサーチEXP（かけらにならなかったぶん）の合計に足す量 */
 const kkExpGain = (r) => (r.kind === 'in' && !r.maxed ? r.exp || 0 : 0);
+/* 「稼ぎ」に入れる記録か（睡眠リサーチ と スキルでもらった分） */
+const kkIsEarn = (r) => r.kind === 'in' || r.kind === 'skill';
+/* 数を直せない記録か（手持ちとの差から自動で出したもの。日付とメモだけ直せる） */
+const kkIsAuto = (kind) => kind === 'adjust' || kind === 'skill';
 
 let kkKind = 'in';        // いま入力しているのは「もらった」か「使った」か
 let kkEditing = null;     // 直している記録の id（新しく記録するときは null）
@@ -1647,7 +1652,7 @@ function kkResetForm() {
   $('#kkSave').textContent = '記録する';
   $('#kkCancel').hidden = true; $('#kkDel').hidden = true;
   $('#kkKindSeg').hidden = false;
-  kkSetKind(kkKind === 'adjust' ? 'in' : kkKind);
+  kkSetKind(kkIsAuto(kkKind) ? 'in' : kkKind);
 }
 /* 入力中の内容で「何がいくつ記録されるか」を下に表示 */
 function kkPreview() {
@@ -1657,9 +1662,8 @@ function kkPreview() {
     el.innerHTML = v ? `手持ちから <span class="kk-minus">−${fmt(v)}</span>` : 'いくつ使ったか入れてください';
     return;
   }
-  if (kkKind === 'adjust') {
-    const v = toNum($('#kkSpend').value);
-    el.textContent = `ずれを直した記録（${fmt(v)}）`;
+  if (kkIsAuto(kkKind)) {
+    el.textContent = '手持ちとの差から出した記録です（直せるのは日付とメモだけ）';
     return;
   }
   const exp = toNum($('#kkExp').value), sh = toNum($('#kkShards').value);
@@ -1675,11 +1679,12 @@ function renderKakera() {
   /* 手持ちと今月のまとめ */
   const bal = list.reduce((s, r) => s + kkSigned(r), 0);
   $('#kkBalance').innerHTML = `${fmt(bal)}<small>こ</small>`;
-  /* 「稼ぎ」= 睡眠リサーチでもらったかけら。条件(ok)に合う記録だけ足す */
+  /* 「稼ぎ」= 睡眠リサーチとスキルでもらったかけら。条件(ok)に合う記録だけ足す */
   const sumOf = (ok) => {
     const rs = list.filter((r) => ok(r.date));
     return {
-      earn: rs.filter((r) => r.kind === 'in').reduce((s, r) => s + r.amount, 0),
+      earn: rs.filter(kkIsEarn).reduce((s, r) => s + r.amount, 0),
+      skill: rs.filter((r) => r.kind === 'skill').reduce((s, r) => s + r.amount, 0),
       spent: rs.filter((r) => r.kind === 'out').reduce((s, r) => s + r.amount, 0),
       exp: rs.reduce((s, r) => s + kkExpGain(r), 0),
     };
@@ -1692,7 +1697,8 @@ function renderKakera() {
     const s = sumOf((dt) => dt.startsWith(m));
     return `<div class="kk-cell"><div class="small muted">${label}</div>` +
       `<div class="kk-mid kk-plus">+${fmt(s.earn)}</div>` +
-      `<div class="small muted">使った <span class="kk-minus">−${fmt(s.spent)}</span>` +
+      `<div class="small muted">` + (s.skill ? `うちスキル <span class="kk-plus">+${fmt(s.skill)}</span><br>` : '') +
+      `使った <span class="kk-minus">−${fmt(s.spent)}</span>` +
       (s.exp ? `<br>リサーチEXP <span class="kk-exp">+${fmt(s.exp)}</span>` : '') + `</div></div>`;
   };
   /* 今週（月曜はじまり）の稼ぎと、1日あたりの平均（今週すでに過ぎた日数で割る。今日も1日に数える） */
@@ -1724,7 +1730,7 @@ function renderKakera() {
   }
   for (const [k, rows] of months) {
     const [y, m] = k.split('-').map(Number);
-    const mIn = rows.filter((r) => r.kind === 'in').reduce((s, r) => s + r.amount, 0);
+    const mIn = rows.filter(kkIsEarn).reduce((s, r) => s + r.amount, 0);
     const mOut = rows.filter((r) => r.kind === 'out').reduce((s, r) => s + r.amount, 0);
     const sec = document.createElement('div');
     sec.className = 'month';
@@ -1743,6 +1749,10 @@ function renderKakera() {
       } else if (r.kind === 'out') {
         title = '🛒 ' + (r.memo ? '' : '使った');
         amt = `<span class="kk-minus">−${fmt(r.amount)}</span>`;
+      } else if (r.kind === 'skill') {
+        title = '✨ ゆめのかけらゲット';
+        sub = 'スキルでもらった分（手持ちとの差）';
+        amt = `<span class="kk-plus">+${fmt(r.amount)}</span>`;
       } else {
         title = '🔧 手持ちを合わせた';
         amt = r.amount >= 0 ? `<span class="kk-plus">+${fmt(r.amount)}</span>` : `<span class="kk-minus">−${fmt(-r.amount)}</span>`;
@@ -1776,9 +1786,9 @@ function kkEdit(id) {
   $('#kkDate').value = r.date;
   $('#kkSave').textContent = '直す';
   $('#kkCancel').hidden = false; $('#kkDel').hidden = false;
-  /* 「手持ちを合わせた」記録は、日付とメモだけ直せる（数は「合わせる」をもう一度やればよい） */
-  $('#kkKindSeg').hidden = r.kind === 'adjust';
-  if (r.kind === 'adjust') { kkKind = 'adjust'; $('#kkInBox').hidden = true; $('#kkOutBox').hidden = true; kkPreview(); }
+  /* 手持ちとの差から出した記録は、日付とメモだけ直せる（数は手持ちをもう一度入れればよい） */
+  $('#kkKindSeg').hidden = kkIsAuto(r.kind);
+  if (kkIsAuto(r.kind)) { $('#kkInBox').hidden = true; $('#kkOutBox').hidden = true; kkPreview(); }
   else kkSetKind(r.kind);
   $('#kkOcrStatus').textContent = '';
   renderKakera();
@@ -1817,7 +1827,7 @@ $('#kkSave').addEventListener('click', () => {
     if (!v) { toast('使ったかけらの数を入れてください'); return; }
     rec = { kind: 'out', amount: v };
   } else {
-    rec = { kind: 'adjust', amount: old ? old.amount : 0 };
+    rec = { kind: kkKind, amount: old ? old.amount : 0 };
   }
   rec = Object.assign(rec, { id: old ? old.id : Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date, memo, at: old ? old.at : Date.now() });
   if (old) list[list.indexOf(old)] = rec; else list.push(rec);
@@ -1836,17 +1846,19 @@ $('#kkDel').addEventListener('click', () => {
   renderKakera();
 });
 
-/* 🔧 ゲームの手持ちに合わせる：ゲームの数を聞いて、記録とのずれを1件の記録として足す */
+/* ✨ ゲームの手持ちを入れる：ゲームの数 − 記録から計算した手持ち ＝ 差 を1件の記録として足す。
+   差が＋なら「ゆめのかけらゲット」スキルでもらった分（稼ぎに入れる）、−なら記録とのずれとして直す */
 $('#kkAdjust').addEventListener('click', () => {
   const list = kkLoad();
   const bal = list.reduce((s, r) => s + kkSigned(r), 0);
-  const ans = prompt(`ゲームでいま持っている「ゆめのかけら」の数を入れてください。\n（記録から計算した手持ち：${fmt(bal)}）`, '');
+  const ans = prompt(`ゲームでいま持っている「ゆめのかけら」の数を入れてください。\n記録との差を「スキルでもらった分」として足します。\n（記録から計算した手持ち：${fmt(bal)}）\n※ 今日のリサーチ結果を先に記録してから入れてください`, '');
   if (ans === null || !ans.trim()) return;
   const diff = toNum(ans) - bal;
-  if (!diff) { toast('ぴったり合っています'); return; }
-  list.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind: 'adjust', amount: diff, date: todayKey(), memo: '', at: Date.now() });
+  if (!diff) { toast('ぴったり合っています（スキル分はありません）'); return; }
+  const kind = diff > 0 ? 'skill' : 'adjust';
+  list.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind, amount: diff, date: todayKey(), memo: '', at: Date.now() });
   if (!kkSaveAll(list)) return;
-  toast(`手持ちを ${fmt(toNum(ans))} に合わせました`);
+  toast(diff > 0 ? `スキルでもらった分 +${fmt(diff)} を記録しました` : `記録より ${fmt(-diff)} 少なかったので合わせました`);
   renderKakera();
 });
 
