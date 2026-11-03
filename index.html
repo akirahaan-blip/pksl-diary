@@ -345,9 +345,14 @@ body.kk-mode[data-theme="light"] { --bg: color-mix(in srgb, var(--accent) 9%, #f
 .kk-minus { color: var(--danger); }
 .kk-exp { color: var(--exp); }
 .kk-shard { color: var(--shard); }
-.kk-form .seg { display: flex; margin-bottom: 10px; }
-.kk-form .seg button { flex: 1; }
-.kk-ocr { width: 100%; }
+.kk-form .seg { display: flex; margin-bottom: 12px; }
+/* もらった／使ったの切り替えは脇役なので小さめ。いちばん押すのは下の「読み取る」ボタン */
+.kk-form .seg button { flex: 1; padding: 6px 10px; font-size: 14px; }
+.kk-ocr {
+  width: 100%; padding: 16px 12px; border-radius: 16px;
+  font-size: 21px; line-height: 1.4;
+  border: 2px solid var(--strong);
+}
 #kkOcrStatus { min-height: 1.4em; margin-top: 4px; text-align: center; }
 #kkOcrStatus.err { color: var(--danger); }
 #kkOcrStatus.ok { color: var(--ok); }
@@ -544,7 +549,7 @@ body.kk-mode[data-theme="light"] { --bg: color-mix(in srgb, var(--accent) 9%, #f
       </div>
 
       <div id="kkInBox">
-        <button class="btn kk-ocr" id="kkOcrBtn">📷 リサーチ結果のスクショを読み取る</button>
+        <button class="btn kk-ocr" id="kkOcrBtn">📷 スクショを読み取る</button>
         <div class="small muted" id="kkOcrStatus"></div>
         <label class="kk-row"><span class="kk-exp">リサーチEXP</span><input type="text" inputmode="numeric" id="kkExp" placeholder="0" autocomplete="off" /></label>
         <label class="kk-row"><span class="kk-shard">ゆめのかけら</span><input type="text" inputmode="numeric" id="kkShards" placeholder="0" autocomplete="off" /></label>
@@ -1707,7 +1712,7 @@ function renderKakera() {
   const box = $('#kkList');
   box.innerHTML = '';
   if (!list.length) {
-    box.innerHTML = '<div class="empty"><div class="big">💰</div>まだ記録がありません。<br>上の「📷 スクショから読み取る」から始めてみてください。</div>';
+    box.innerHTML = '<div class="empty"><div class="big">💰</div>まだ記録がありません。<br>上の「📷 スクショを読み取る」から始めてみてください。</div>';
     return;
   }
   const sorted = list.slice().sort((a, b) => (a.date === b.date ? b.at - a.at : a.date < b.date ? 1 : -1));
