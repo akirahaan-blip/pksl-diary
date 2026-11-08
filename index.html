@@ -296,6 +296,21 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
 .cal .ring .moon { position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; border-width: 2px; box-shadow: 0 0 0 2px var(--bg); z-index: 1; }
 /* 満月・新月の前後1日は同じ印を薄く（ポケスリは前後1日もイベント扱いのため） */
 .cal .ring .moon.near { opacity: .38; }
+/* おこづかい帳でリサーチを記録した日の印（おこづかい帳と同じ紫）。設定でハートかチェックを選ぶ。
+   どちらも上に重ねるだけなので、カレンダーの並び（高さ）は変わらない */
+/* チェック：リングの右下に、塗りつぶしの丸に白い ✓ */
+.cal .ring .kkmark {
+  position: absolute; bottom: -6px; right: -7px; width: 19px; height: 19px; border-radius: 50%;
+  background: #a47bc9; color: #fff; font-size: 13px; line-height: 19px; text-align: center;
+  font-family: system-ui, sans-serif; font-weight: 700; box-shadow: 0 0 0 2px var(--bg); z-index: 1;
+}
+/* ハート：日付の数字の後ろに、紫のハート */
+.cal .num { position: relative; z-index: 0; }
+.cal .num.calkk-heart::before {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 32px; height: 30px;
+  transform: translate(-50%, -46%); z-index: -1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 22'%3E%3Cpath d='M12 20.5S2 14.6 2 7.8C2 4.6 4.4 2 7.4 2c2 0 3.6 1.1 4.6 2.7C13 3.1 14.6 2 16.6 2 19.6 2 22 4.6 22 7.8 22 14.6 12 20.5 12 20.5z' fill='%23a47bc9' fill-opacity='.22' stroke='%23a47bc9' stroke-width='1.8' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
 .moonline { margin-top: 2px; min-height: 1.2em; }
 .moonline .moon { margin-right: 4px; }
 
@@ -606,6 +621,16 @@ body.kk-mode[data-theme="light"] { --bg: color-mix(in srgb, var(--accent) 9%, #f
     </div>
 
     <div class="section">
+      <h3>カレンダーのリサーチ記録の印</h3>
+      <div class="seg" id="kkMarkSeg">
+        <button data-mark="none">表示しない</button>
+        <button data-mark="heart">♡ ハート</button>
+        <button data-mark="check">✓ チェック</button>
+      </div>
+      <p class="note">おこづかい帳で睡眠リサーチを記録した日は、カレンダーの日付の数字に紫の印が付きます。入れ忘れた日を見つけるのに使えます。</p>
+    </div>
+
+    <div class="section">
       <h3>画面の明るさ</h3>
       <div class="seg" id="modeSeg">
         <button data-mode="auto">スマホに合わせる</button>
@@ -833,7 +858,7 @@ const PRESETS = [
   ['#8b5cf6', 'むらさき'], ['#3b82f6', 'あお'], ['#0ea5a4', 'みずいろ'],
   ['#2e9e5b', 'みどり'], ['#e08a1e', 'オレンジ'], ['#6b4f3a', 'こげ茶'],
 ];
-const defaults = { accent: '#c43d74', mode: 'auto', moon: 'fullnew', kkMaxed: false };   // moon: none / fullnew / quarters、kkMaxed: リサーチランクがカンストか
+const defaults = { accent: '#c43d74', mode: 'auto', moon: 'fullnew', kkMaxed: false, kkMark: 'heart' };   // moon: none / fullnew / quarters、kkMaxed: リサーチランクがカンストか、kkMark: カレンダーの印 none / heart / check
 let settings = loadSettings();
 
 function loadSettings() {
@@ -1340,10 +1365,13 @@ $('#searchClear').addEventListener('click', () => {
 const CAL_STEP = 3;
 let calShown = 0;          // いま表示している月の数
 let calEntries = null;     // 日付 → その日のデータ（1枚目のスクショを丸の中に出すため）
+let calKk = new Set();     // おこづかい帳で睡眠リサーチを記録した日付
 
 async function renderCalendar() {
   revokeAll('calendar');
   calEntries = new Map((await dbGetAll()).map((e) => [e.date, e]));
+  /* おこづかい帳で睡眠リサーチを記録した日（入れ忘れた日が分かるように、カレンダーに印を付ける） */
+  calKk = new Set(kkLoad().filter((r) => r.kind === 'in').map((r) => r.date));
   $('#calMonths').innerHTML = '';
   calShown = 0;
   addMonths(CAL_STEP);
@@ -1419,6 +1447,13 @@ function makeMonth(y, m) {
       mo.title = { full: '満月', new: '新月', first: '上弦', last: '下弦' }[mk.type] + (mk.near ? 'の' + mk.when : '');
       ring.appendChild(mo);
     }
+    /* 睡眠リサーチを記録した日の紫の印（設定で選ぶ）。ハート＝日付の数字をかこむ、チェック＝リングの右下に ✓ */
+    if (calKk.has(k) && settings.kkMark === 'heart') { num.classList.add('calkk-heart'); num.title = 'リサーチを記録した日'; }
+    if (calKk.has(k) && settings.kkMark === 'check') {
+      const kk = document.createElement('span');
+      kk.className = 'kkmark'; kk.textContent = '✓'; kk.title = 'リサーチを記録した日';
+      ring.appendChild(kk);
+    }
     btn.append(num, ring);
     btn.addEventListener('click', () => openDay(k));
     grid.appendChild(btn);
@@ -1486,6 +1521,7 @@ function renderSettings() {
   $('#accentInput').value = settings.accent;
   document.querySelectorAll('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.mode === settings.mode));
   document.querySelectorAll('#moonSeg button').forEach((b) => b.classList.toggle('on', b.dataset.moon === settings.moon));
+  document.querySelectorAll('#kkMarkSeg button').forEach((b) => b.classList.toggle('on', b.dataset.mark === settings.kkMark));
   showStorage();
 }
 function setAccent(c) {
@@ -1500,6 +1536,9 @@ document.querySelectorAll('#modeSeg button').forEach((b) => {
 });
 document.querySelectorAll('#moonSeg button').forEach((b) => {
   b.addEventListener('click', () => { settings.moon = b.dataset.moon; saveSettings(); renderSettings(); });
+});
+document.querySelectorAll('#kkMarkSeg button').forEach((b) => {
+  b.addEventListener('click', () => { settings.kkMark = b.dataset.mark; saveSettings(); renderSettings(); });
 });
 async function showStorage() {
   const el = $('#storageInfo');
