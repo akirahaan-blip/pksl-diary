@@ -1887,13 +1887,15 @@ function kkWorker() {
   }
   return kkWorkerP;
 }
-/* 下ごしらえ：数字が並ぶ「右側・画面の中ほどから下」だけを切り出して拡大し、白黒にする。
+/* 下ごしらえ：数字が並ぶ「右側・画面の中ほどから下」だけを切り出して、幅 200px にそろえ、白黒にする。
+   大きく拡大すると、丸い字の「36,168」を「356,168」と読みまちがえやすい。
+   幅 150〜260px あたりがいちばん正確だったので、まん中の 200px にする（スマホの画面の大きさがちがっても同じ大きさになる）。
    数字は緑・青・黄色なので、「白っぽくない所 = 黒」にすれば黄色の数字も消えずに残る */
 function kkCrop(img) {
   const W = img.naturalWidth, H = img.naturalHeight;
   const x0 = Math.round(W * 0.58), y0 = Math.round(H * 0.38);
   const w = W - x0, h = Math.round(H * 0.84) - y0;
-  const scale = Math.min(3, 1200 / w);
+  const scale = 200 / w;
   const c = document.createElement('canvas');
   c.width = Math.round(w * scale); c.height = Math.round(h * scale);
   const ctx = c.getContext('2d');
