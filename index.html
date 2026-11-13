@@ -350,6 +350,8 @@ body.kk-mode[data-theme="light"] { --bg: color-mix(in srgb, var(--accent) 9%, #f
 .kk-big { font-size: 30px; line-height: 1.3; color: var(--shard); }
 .kk-big small { font-size: 14px; color: var(--muted); margin-left: 4px; }
 .kk-month { margin: 8px 0 10px; }
+/* 手持ちを入れる2つのボタン：押しやすいよう横いっぱい・大きめの字に（14px 以上なので太さは Heavy のまま） */
+.kk-sum .chip { display: block; width: 100%; margin-top: 8px; padding: 10px 12px; font-size: 15px; font-weight: inherit; line-height: 1.4; border-radius: 14px; border-width: 1.5px; }
 /* 先月・今月の稼ぎを横に2つ並べる箱 */
 .kk-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .kk-cell { background: var(--soft); border-radius: 12px; padding: 8px 6px; line-height: 1.5; }
@@ -553,7 +555,8 @@ body.kk-mode[data-theme="light"] { --bg: color-mix(in srgb, var(--accent) 9%, #f
       <div class="small muted">いまの手持ち（記録から計算）</div>
       <div class="kk-big" id="kkBalance">0</div>
       <div class="kk-month" id="kkMonthSum"></div>
-      <button class="chip" id="kkAdjust">✨ ゲームの手持ちを入れて、スキル分を出す</button>
+      <button class="chip" id="kkAdjust">✨ 手持ちを入れて、スキル分を出す</button>
+      <button class="chip" id="kkSetBal">🔧 手持ちを入力（ミッションなど）</button>
     </div>
 
     <!-- 記録する欄 -->
@@ -1898,6 +1901,20 @@ $('#kkAdjust').addEventListener('click', () => {
   list.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind, amount: diff, date: todayKey(), memo: '', at: Date.now() });
   if (!kkSaveAll(list)) return;
   toast(diff > 0 ? `スキルでもらった分 +${fmt(diff)} を記録しました` : `記録より ${fmt(-diff)} 少なかったので合わせました`);
+  renderKakera();
+});
+/* 🔧 ゲームの手持ちを入力：スキル以外（ミッションの報酬など）で数がずれたとき用。
+   差は＋でも−でも「手持ちを合わせた」記録にする（スキル分としては数えず、稼ぎにも入れない） */
+$('#kkSetBal').addEventListener('click', () => {
+  const list = kkLoad();
+  const bal = list.reduce((s, r) => s + kkSigned(r), 0);
+  const ans = prompt(`ゲームでいま持っている「ゆめのかけら」の数を入れてください。\n記録との差を「手持ちを合わせた」として足します（スキル分には数えません）。\n（記録から計算した手持ち：${fmt(bal)}）`, '');
+  if (ans === null || !ans.trim()) return;
+  const diff = toNum(ans) - bal;
+  if (!diff) { toast('ぴったり合っています'); return; }
+  list.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind: 'adjust', amount: diff, date: todayKey(), memo: '', at: Date.now() });
+  if (!kkSaveAll(list)) return;
+  toast(`手持ちを ${fmt(toNum(ans))} に合わせました（${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff))}）`);
   renderKakera();
 });
 
