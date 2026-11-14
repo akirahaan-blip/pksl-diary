@@ -296,20 +296,25 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
 .cal .ring .moon { position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; border-width: 2px; box-shadow: 0 0 0 2px var(--bg); z-index: 1; }
 /* 満月・新月の前後1日は同じ印を薄く（ポケスリは前後1日もイベント扱いのため） */
 .cal .ring .moon.near { opacity: .38; }
-/* おこづかい帳でリサーチを記録した日の印（おこづかい帳と同じ紫）。設定でハートかチェックを選ぶ。
+/* おこづかい帳でリサーチを記録した日の印（おこづかい帳と同じ色 = --kk-accent）。設定でハートかチェックを選ぶ。
    どちらも上に重ねるだけなので、カレンダーの並び（高さ）は変わらない */
 /* チェック：リングの右下に、塗りつぶしの丸に白い ✓ */
 .cal .ring .kkmark {
   position: absolute; bottom: -6px; right: -7px; width: 19px; height: 19px; border-radius: 50%;
-  background: #a47bc9; color: #fff; font-size: 13px; line-height: 19px; text-align: center;
+  background: var(--kk-accent); color: #fff; font-size: 13px; line-height: 19px; text-align: center;
   font-family: system-ui, sans-serif; font-weight: 700; box-shadow: 0 0 0 2px var(--bg); z-index: 1;
 }
-/* ハート：日付の数字の後ろに、紫のハート */
+/* ハート：日付の数字の後ろにハート。
+   色を設定で変えられるよう、ハートの形は「型抜き（mask）」にして、色は background で塗る
+   （型の中は薄く 22%、ふちは濃く） */
 .cal .num { position: relative; z-index: 0; }
 .cal .num.calkk-heart::before {
   content: ""; position: absolute; left: 50%; top: 50%; width: 32px; height: 30px;
   transform: translate(-50%, -46%); z-index: -1;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 22'%3E%3Cpath d='M12 20.5S2 14.6 2 7.8C2 4.6 4.4 2 7.4 2c2 0 3.6 1.1 4.6 2.7C13 3.1 14.6 2 16.6 2 19.6 2 22 4.6 22 7.8 22 14.6 12 20.5 12 20.5z' fill='%23a47bc9' fill-opacity='.22' stroke='%23a47bc9' stroke-width='1.8' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  background: var(--kk-accent);
+  --heart: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 22'%3E%3Cpath d='M12 20.5S2 14.6 2 7.8C2 4.6 4.4 2 7.4 2c2 0 3.6 1.1 4.6 2.7C13 3.1 14.6 2 16.6 2 19.6 2 22 4.6 22 7.8 22 14.6 12 20.5 12 20.5z' fill='%23000' fill-opacity='.22' stroke='%23000' stroke-width='1.8' stroke-linejoin='round'/%3E%3C/svg%3E");
+  -webkit-mask: var(--heart) center / contain no-repeat;
+  mask: var(--heart) center / contain no-repeat;
 }
 .moonline { margin-top: 2px; min-height: 1.2em; }
 .moonline .moon { margin-right: 4px; }
@@ -323,6 +328,7 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
   box-shadow: 0 0 0 1px var(--line);
 }
 .swatch.on { border-color: var(--text); }
+#kkSame.on { background: var(--strong); color: #fff; border-color: var(--strong); }   /* 「ダイアリーと同じ」を選んでいるとき */
 .colorpick { display: flex; align-items: center; gap: 8px; }
 .colorpick input[type="color"] { width: 38px; height: 38px; border: none; padding: 0; background: none; border-radius: 50%; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--card); }
@@ -342,7 +348,7 @@ mark.hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color
 :root { --shard: #e39a12; --exp: #3a8ee6; }
 /* おこづかい帳のタブを開いている間だけ、テーマ色をメタモンっぽい薄紫に差し替える。
    ほかの色（背景・線・文字）はぜんぶ --accent から作っているので、ここを変えるだけで全体が紫になる */
-body.kk-mode { --accent: #a47bc9; }
+body.kk-mode { --accent: var(--kk-accent); }
 body.kk-mode[data-theme="light"] { --bg: color-mix(in srgb, var(--accent) 9%, #ffffff); }
 /* 文字は教科書体ふうの Klee One（いちばん太いのが 600） */
 #view-kakera { font-family: "Klee One", "UD デジタル 教科書体 N-R", "Yu Mincho", serif; font-weight: 600; }
@@ -555,8 +561,8 @@ body.kk-mode[data-theme="light"] { --bg: color-mix(in srgb, var(--accent) 9%, #f
       <div class="small muted">いまの手持ち（記録から計算）</div>
       <div class="kk-big" id="kkBalance">0</div>
       <div class="kk-month" id="kkMonthSum"></div>
-      <button class="chip" id="kkAdjust">✨ 手持ちを入れて、スキル分を出す</button>
-      <button class="chip" id="kkSetBal">🔧 手持ちを入力（ミッションなど）</button>
+      <button class="chip" id="kkAdjust">✨ 手持ちを入れる（スキル分）</button>
+      <button class="chip" id="kkSetBal">🔧 手持ちを入れる（ミッション分など）</button>
     </div>
 
     <!-- 記録する欄 -->
@@ -611,6 +617,17 @@ body.kk-mode[data-theme="light"] { --bg: color-mix(in srgb, var(--accent) 9%, #f
         <input type="color" id="accentInput" aria-label="好きな色を選ぶ" />
         <span class="small muted">← 押すと好きな色を細かく選べます</span>
       </div>
+    </div>
+
+    <div class="section">
+      <h3>おこづかい帳の色（💰タブだけの色）</h3>
+      <button class="chip" id="kkSame">🎨 ダイアリーと同じ色にする</button>
+      <div class="swatches" id="kkSwatches" style="margin-top:10px"></div>
+      <div class="colorpick" style="margin-top:10px">
+        <input type="color" id="kkAccentInput" aria-label="おこづかい帳の好きな色を選ぶ" />
+        <span class="small muted">← 押すと好きな色を細かく選べます</span>
+      </div>
+      <p class="note">はじめはメタモンっぽい薄紫です。カレンダーのリサーチ記録の印も、この色になります。</p>
     </div>
 
     <div class="section">
@@ -861,7 +878,8 @@ const PRESETS = [
   ['#8b5cf6', 'むらさき'], ['#3b82f6', 'あお'], ['#0ea5a4', 'みずいろ'],
   ['#2e9e5b', 'みどり'], ['#e08a1e', 'オレンジ'], ['#6b4f3a', 'こげ茶'],
 ];
-const defaults = { accent: '#c43d74', mode: 'auto', moon: 'fullnew', kkMaxed: false, kkMark: 'heart' };   // moon: none / fullnew / quarters、kkMaxed: リサーチランクがカンストか、kkMark: カレンダーの印 none / heart / check
+const KK_PURPLE = '#a47bc9';   // おこづかい帳のはじめの色（メタモンっぽい薄紫）
+const defaults = { accent: '#c43d74', mode: 'auto', moon: 'fullnew', kkMaxed: false, kkMark: 'heart', kkAccent: KK_PURPLE };   // moon: none / fullnew / quarters、kkMaxed: リサーチランクがカンストか、kkMark: カレンダーの印 none / heart / check、kkAccent: おこづかい帳の色（'same' ならダイアリーと同じ）
 let settings = loadSettings();
 
 function loadSettings() {
@@ -874,6 +892,8 @@ function saveSettings() {
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
 function applyTheme() {
   document.documentElement.style.setProperty('--accent', settings.accent);
+  /* おこづかい帳の色。--kk-accent は💰タブとカレンダーの印で使う */
+  document.documentElement.style.setProperty('--kk-accent', settings.kkAccent === 'same' ? settings.accent : settings.kkAccent);
   const dark = settings.mode === 'dark' || (settings.mode === 'auto' && darkQuery.matches);
   document.body.dataset.theme = dark ? 'dark' : 'light';
   $('#metaTheme').content = settings.accent;
@@ -1525,8 +1545,28 @@ function renderSettings() {
   document.querySelectorAll('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.mode === settings.mode));
   document.querySelectorAll('#moonSeg button').forEach((b) => b.classList.toggle('on', b.dataset.moon === settings.moon));
   document.querySelectorAll('#kkMarkSeg button').forEach((b) => b.classList.toggle('on', b.dataset.mark === settings.kkMark));
+  /* おこづかい帳の色：薄紫 ＋ テーマ色と同じ候補。「ダイアリーと同じ」のときはどれも選ばれていない形にする */
+  const kw = $('#kkSwatches');
+  kw.innerHTML = '';
+  [[KK_PURPLE, 'メタモンっぽい薄紫'], ...PRESETS].forEach(([c, name]) => {
+    const b = document.createElement('button');
+    b.className = 'swatch' + (c.toLowerCase() === settings.kkAccent.toLowerCase() ? ' on' : '');
+    b.style.background = c;
+    b.title = name; b.setAttribute('aria-label', name);
+    b.addEventListener('click', () => setKkAccent(c));
+    kw.appendChild(b);
+  });
+  $('#kkSame').classList.toggle('on', settings.kkAccent === 'same');
+  $('#kkAccentInput').value = settings.kkAccent === 'same' ? settings.accent : settings.kkAccent;
   showStorage();
 }
+function setKkAccent(c) {
+  settings.kkAccent = c;
+  saveSettings(); applyTheme(); renderSettings();
+}
+$('#kkSame').addEventListener('click', () => setKkAccent('same'));
+$('#kkAccentInput').addEventListener('input', (e) => { settings.kkAccent = e.target.value; saveSettings(); applyTheme(); });
+$('#kkAccentInput').addEventListener('change', () => renderSettings());
 function setAccent(c) {
   try { localStorage.setItem(TIP_KEY, '1'); } catch {}   // 色を変えた人にはお知らせは不要
   settings.accent = c;
